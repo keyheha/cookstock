@@ -3,3 +3,4 @@ proxy.txt
 update_results.sh
 cronjob.log
 crontab.log
+src/__pycache__

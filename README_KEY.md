@@ -1,6 +1,9 @@
 # Getting Started
 
 ```bash
+/opt/homebrew/bin/python3.9 -m venv venv
+source venv/bin/activate
+
 conda env create -f env_mac.yml
 conda activate cookStock
 ```

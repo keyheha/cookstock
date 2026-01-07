@@ -13,6 +13,24 @@ from time import sleep
 import sys
 
 import matplotlib.pyplot as plt
+import logging
+import time
+
+# Basic logger setup for pipeline progress
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    # Allow overriding via environment variable LOG_LEVEL (e.g., DEBUG, INFO, WARNING)
+    log_level = os.getenv("LOG_LEVEL")
+    if log_level:
+        try:
+            logger.setLevel(getattr(logging, log_level.upper()))
+        except Exception:
+            logger.warning("Invalid LOG_LEVEL '%s'; using INFO", log_level)
 
 def find_path():
     home_dir = os.path.expanduser("~")  # Get the home directory
@@ -23,7 +41,11 @@ def find_path():
 basePath = find_path()
 yhPath = os.path.join(basePath, 'yahoofinancials')
 sys.path.insert(0, yhPath)
-from yahoofinancials import YahooFinancials
+try:
+    from yahoofinancials import YahooFinancials
+except Exception:
+    YahooFinancials = object
+    logger.warning("Failed to import YahooFinancials; some functionality may be limited due to missing dependency.")
 
 #define some constants
 class algoParas:   
@@ -743,47 +765,56 @@ class batch_process:
         self.resultsPath = os.path.join(basePath, 'results', current_date)
         file = sectors + '.json'
         self.result_file = setup_result_file(self.resultsPath, file)
+        logger.info("Initialized batch_process for %d tickers; results -> %s", len(self.tickers), self.result_file) 
             
     def batch_strategy(self):
         superStock=[]
-        for i in range(np.size(self.tickers)):
+        total = np.size(self.tickers)
+        start_time = time.time()
+        logger.info("Starting batch_strategy for %d tickers", total)
+        for i in range(total):
             try:
-                print(self.tickers[i])
-                x = cookFinancials(self.tickers[i])
+                ticker = self.tickers[i]
+                logger.info("Processing %d/%d: %s", i+1, total, ticker)
+                x = cookFinancials(ticker)
                 s1=0
                 s2=0
                 s3=0
                 if x.mv_strategy()==1:
                     s1 = 1
-                    print("passing moving average strategy")
+                    logger.info("passing moving average strategy for %s", ticker)
                 if x.vol_strategy() == 1: #not from original book, not working
                     s2 = 1
-                    print("passing 3 day volume strategy")
+                    logger.info("passing 3 day volume strategy for %s", ticker)
                 if x.price_strategy() == 1:
                     s3 = 1
-                    print("passing price strategy")
+                    logger.info("passing price strategy for %s", ticker)
                 #if s1==1 and s2==1 and s3==1:
                 if s1==1 and s3==1 and s2:
-                    print("congrats, this stock passes all strategys, run volatility contraction pattern")
-                    superStock.append(self.tickers[i])    
-                append_to_json(self.result_file, self.tickers[i])
+                    logger.info("congrats, %s passes strategies", ticker)
+                    superStock.append(ticker)    
+                append_to_json(self.result_file, ticker)
             except Exception:
-                print("error!")
+                logger.exception("Error processing ticker %s", self.tickers[i])
                 pass
+        logger.info("batch_strategy finished; candidates=%d, elapsed=%.2fs", len(superStock), time.time()-start_time)
         
             
     def batch_pipeline_full(self):
         superStock=[]
+        total = np.size(self.tickers)
         date_from = (dt.date.today() - dt.timedelta(days=100))
         date_to = (dt.date.today())
-        for i in range(np.size(self.tickers)):
+        start_time = time.time()
+        logger.info("Starting batch_pipeline_full for %d tickers", total)
+        for idx in range(total):
             try:
-                ticker = self.tickers[i]
-                print(ticker)
+                ticker = self.tickers[idx]
+                logger.info("Processing %d/%d: %s", idx+1, total, ticker)
                 x = cookFinancials(ticker)
                 flag = x.combined_best_strategy()
                 if flag == True:
-                    print("congrats, this stock passes all strategys")
+                    logger.info("%s passes combined strategy", ticker)
                     superStock.append(ticker)
                     sp = x.get_price(date_from, 100)
                     tmpLen = len(sp)
@@ -821,36 +852,33 @@ class batch_process:
                     # Format date labels for readability
                     fig.autofmt_xdate(rotation=45)
                     
-                    print(x.get_highest_in5days(date_from))
+                    logger.info("Highest in 5 days for %s: %s", ticker, x.get_highest_in5days(date_from))
                     
                     counter, record = x.find_volatility_contraction_pattern(date_from)
                     
                     if counter > 0:
+                        logger.info("Found %d VCP pattern(s) for %s", counter, ticker)
                         for i in range(counter):
                             ax[0].plot([record[i][0], record[i][2]], [record[i][1], record[i][3]], 'r')
                         
                         # ax[0].set_xticks(np.arange(0, len(date)+1, 12))
                         # ax[1].set_xticks(np.arange(0, len(date)+1, 12))
                         
-                        print('footprint:')
                         footprint = x.get_footPrint()
-                        print(footprint)
-                        print('is a good pivot?')
+                        logger.debug("footprint for %s: %s", ticker, footprint)
                         isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
-                        print(isGoodPivot)
-                        print('is a deep correction?')
+                        logger.info("is_good_pivot=%s for %s", isGoodPivot, ticker)
                         isDeepCor = x.is_correction_deep()
-                        print(isDeepCor)
-                        print('is demand dried?')
+                        logger.info("is_deep_correction=%s for %s", isDeepCor, ticker)
                         isDemandDry, startDate, endDate, volume_ls, slope, interY, recentStart, recentEnd, volume_re, slopeRecet, interYRecent = x.is_demand_dry()
-                        print(isDemandDry)
+                        logger.info("is_demand_dry=%s for %s", isDemandDry, ticker)
     
                         ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
                                     'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry)}}    
 
                         for ind, item in enumerate(date):
                             if item == startDate:
-                                print(ind)
+                                logger.debug("start index for demand dry for %s: %d", ticker, ind)
                                 break
                         x_axis = []
                         for i in range(len(volume_ls)):
@@ -862,7 +890,7 @@ class batch_process:
                         
                         for ind, item in enumerate(date):
                             if item == recentStart:
-                                print(ind)
+                                logger.debug("recent start index for %s: %d", ticker, ind)
                                 break
                         x_axis = []
                         for i in range(len(volume_re)):
@@ -879,13 +907,15 @@ class batch_process:
                                         format='jpeg',
                                         dpi=100,
                                         bbox_inches='tight')
+                            logger.info("Saved figure %s", figName)
                             #add link to the json file
                             ticker_data[ticker]['fig'] = figName
                             
                         append_to_json(self.result_file, ticker_data)
             except Exception:
-                print("error!")
+                logger.exception("Error processing ticker %s", ticker)
                 pass
+        logger.info("batch_pipeline_full finished; candidates=%d, elapsed=%.2fs", len(superStock), time.time()-start_time)
 
             
     def batch_financial(self):       

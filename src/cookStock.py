@@ -40,12 +40,34 @@ def find_path():
     return None  # Return None if the folder was not found
 basePath = find_path()
 yhPath = os.path.join(basePath, 'yahoofinancials')
-sys.path.insert(0, yhPath)
+# Prefer the inner package directory inside the cloned repo (yahoofinancials/yahoofinancials)
+inner_yh = os.path.join(yhPath, 'yahoofinancials')
+if os.path.isdir(inner_yh):
+    sys.path.insert(0, inner_yh)
+else:
+    sys.path.insert(0, yhPath)
 try:
+    # Try the normal import first
     from yahoofinancials import YahooFinancials
 except Exception:
-    YahooFinancials = object
-    logger.warning("Failed to import YahooFinancials; some functionality may be limited due to missing dependency.")
+    try:
+        # Try importing the common module path (explicit file-based import as a fallback)
+        from yahoofinancials.yf import YahooFinancials
+    except Exception:
+        # Last-resort: load yf.py directly from the submodule path
+        try:
+            import importlib.util
+            yf_path = os.path.join(yhPath, 'yahoofinancials', 'yf.py')
+            spec = importlib.util.spec_from_file_location('yahoofinancials.yf', yf_path)
+            if spec and spec.loader:
+                yf_mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(yf_mod)
+                YahooFinancials = getattr(yf_mod, 'YahooFinancials', None)
+            if YahooFinancials is None:
+                raise ImportError('YahooFinancials not found in yf.py')
+        except Exception:
+            YahooFinancials = object
+            logger.warning("Failed to import YahooFinancials; some functionality may be limited due to missing dependency.")
 
 #define some constants
 class algoParas:   

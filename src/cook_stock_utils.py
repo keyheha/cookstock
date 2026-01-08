@@ -3,6 +3,22 @@ import os
 import datetime as dt
 import sys
 import glob
+import logging
+
+# Module logger
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    log_level = os.getenv("LOG_LEVEL")
+    if log_level:
+        try:
+            logger.setLevel(getattr(logging, log_level.upper()))
+        except Exception:
+            logger.warning("Invalid LOG_LEVEL '%s'; using INFO", log_level)
 
 def find_path():
     """Find the base path of the 'cookstock' directory."""
@@ -16,7 +32,7 @@ def find_path():
 basePath = os.path.join(find_path())
 #src path
 srcPath = os.path.join(basePath, 'src')
-print("Adding to sys.path:", srcPath)
+logger.info("Adding to sys.path: %s", srcPath)
 sys.path.insert(0, srcPath)
 import cookStock
 from cookStock import *
@@ -32,7 +48,7 @@ def save_json(data, file_path):
     """Save data to a JSON file."""
     with open(file_path, 'w') as f:
         json.dump(data, f, indent=4)
-    print(f"JSON saved to '{file_path}'")
+    logger.info("JSON saved to '%s'", file_path)
     
 def append_to_json(filepath, ticker_data):
     data = read_json(filepath)
@@ -270,14 +286,14 @@ def check_current_price_from_raw_selections(base_path, folder_name, json_file_na
 
     for entry in data["data"]:
         for ticker, details in entry.items():
-            print(f"Processing ticker: {ticker}")
+            logger.info("Processing ticker: %s", ticker)
             x = cookFinancials(ticker)
             s = x.get_current_price()
             current_price_in_data = float(details['current price'])
             details['current price at check'] = s
             details['change'] = (s - current_price_in_data) / current_price_in_data
             details['time at Check'] = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"Updated {ticker}: Current Price: {s}, Change: {details['change']:.4%}")
+            logger.info("Updated %s: Current Price: %s, Change: %.4f", ticker, s, details['change'])
 
     # Sort data based on change percentage
     data["data"].sort(key=lambda x: list(x.values())[0]['change'], reverse=True)
@@ -295,7 +311,7 @@ def check_if_duplicates(json_file):
 
 def check_and_remove_duplicates(json_file):
     """Remove duplicate tickers from a JSON file."""
-    print(f"Checking for duplicates in {json_file}...")
+    logger.info("Checking for duplicates in %s", json_file)
     data = read_json(json_file)
     unique_data = {"data": []}
     seen_tickers = set()
@@ -307,15 +323,15 @@ def check_and_remove_duplicates(json_file):
                 seen_tickers.add(ticker)
 
     save_json(unique_data, json_file)
-    print(f"Duplicates removed from {json_file}")
+    logger.info("Duplicates removed from %s", json_file)
 
 
 def count_tickers(json_file):
     """Count the total number of entries in a JSON file."""
     data = read_json(json_file)
     tickers = [list(entry.keys())[0] for entry in data["data"]]
-    print(f"Total tickers: {len(tickers)}")
-    print(f"Unique tickers: {len(set(tickers))}")
+    logger.info("Total tickers: %d", len(tickers))
+    logger.info("Unique tickers: %d", len(set(tickers)))
     return len(tickers)
 
 def create_combinedJson_addCurrentPrice_fromAllFolders():
@@ -324,16 +340,16 @@ def create_combinedJson_addCurrentPrice_fromAllFolders():
     resultsPath = os.path.join(basePath, 'results')
     for _, dirs, _ in os.walk(resultsPath):
         for folder in dirs:
-            print(folder)
+            logger.debug("Found folder %s", folder)
             
             try:
                 # Attempt to parse the folder name as a date
                 date = dt.datetime.strptime(folder, '%Y-%m-%d')
-                print(date)
+                logger.debug("Parsed date %s for folder %s", date, folder)
                 folderList.append((folder, date))  # Append folder name and date as a tuple
             except ValueError:
                 # If the folder name is not a date, skip it
-                print(f"Skipping folder '{folder}' - not in 'YYYY-MM-DD' format.")
+                logger.debug("Skipping folder '%s' - not in 'YYYY-MM-DD' format.", folder)
                 continue
 
 
@@ -350,7 +366,7 @@ def create_combinedJson_addCurrentPrice_fromAllFolders():
         for entry in data["data"]:
             for ticker, details in entry.items():
                 #get current price of the stock
-                print(ticker)
+                logger.info("Processing %s", ticker)
                 x = cookFinancials(ticker)
                 s = x.get_current_price()
                 # Convert details['current price'] to float
@@ -380,7 +396,7 @@ def add_current_price(file):
     data = read_json(file)
     for entry in data['data']:
         for ticker, details in entry.items():
-            print(f"Processing ticker: {ticker}")
+            logger.info("Processing ticker: %s", ticker)
             x = cookFinancials(ticker)
             current_price = x.get_current_price()
             details['current price at Check'] = current_price

@@ -15,6 +15,8 @@ import sys
 import matplotlib.pyplot as plt
 import logging
 import time
+import threading
+import functools
 
 # Basic logger setup for pipeline progress
 logger = logging.getLogger(__name__)
@@ -31,6 +33,59 @@ if not logger.handlers:
             logger.setLevel(getattr(logging, log_level.upper()))
         except Exception:
             logger.warning("Invalid LOG_LEVEL '%s'; using INFO", log_level)
+
+# Helper to emit periodic heartbeat logs while a single ticker is being processed
+# Use a background thread that logs every `interval` seconds until stopped.
+def _start_heartbeat(ticker, interval=30):
+    stop = threading.Event()
+    start = time.time()
+    def _hb():
+        while not stop.is_set():
+            elapsed = time.time() - start
+            logger.info("Ticker %s still processing (elapsed %.0fs)", ticker, elapsed)
+            stop.wait(interval)
+    t = threading.Thread(target=_hb, daemon=True)
+    t.start()
+    return stop
+
+# Reusable decorator to log function entry/exit and duration. Use as @_log_step() above methods.
+def _log_step(level='info', show_args=False):
+    """Decorator to log entry/exit and execution time for functions.
+    - level: 'info' or 'debug'
+    - show_args: if True, will attempt to log args and kwargs (may trim `self` for methods)
+    """
+    def _decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            name = f"{func.__qualname__}"
+            if show_args:
+                try:
+                    arg_preview = args[1:] if len(args) > 0 else args
+                    if level == 'debug':
+                        logger.debug("Entering %s args=%s kwargs=%s", name, arg_preview, kwargs)
+                    else:
+                        logger.info("Entering %s", name)
+                except Exception:
+                    logger.debug("Entering %s (args omitted due to formatting error)", name)
+            else:
+                if level == 'debug':
+                    logger.debug("Starting %s", name)
+                else:
+                    logger.info("Starting %s", name)
+            t0 = time.time()
+            try:
+                result = func(*args, **kwargs)
+                elapsed = time.time() - t0
+                if level == 'debug':
+                    logger.debug("Finished %s in %.2fs", name, elapsed)
+                else:
+                    logger.info("Finished %s in %.2fs", name, elapsed)
+                return result
+            except Exception:
+                logger.exception("Error in %s", name)
+                raise
+        return wrapper
+    return _decorator
 
 def find_path():
     home_dir = os.path.expanduser("~")  # Get the home directory
@@ -131,6 +186,7 @@ class cookFinancials(YahooFinancials):
         self.cfsh_quarter = self.get_financial_stmts('quarterly','cash')['cashflowStatementHistoryQuarterly']
         return self.cfsh_quarter
     
+    @_log_step()
     def get_BV(self, numofYears=20):
         bv = []
         if not(self.bshData):
@@ -147,6 +203,7 @@ class cookFinancials(YahooFinancials):
             bv.append(self.bshData[self.ticker][i][date_key]['stockholdersEquity'])
         return bv
     
+    @_log_step()
     def get_BV_quarter(self, numofQuarter=20):
         bv = []
         if not(self.bshData_quarter):
@@ -157,7 +214,7 @@ class cookFinancials(YahooFinancials):
                 break
             if not(self.bshData_quarter[self.ticker][i][date_key].get('stockholdersEquity')):
                 #warning
-                print('stockholdersEquity is not in the dictionary')
+                logger.warning("stockholdersEquity is not in the dictionary for %s (quarter)", self.ticker)
                 break
             bv.append(self.bshData_quarter[self.ticker][i][date_key]['stockholdersEquity'])
         return bv   
@@ -195,6 +252,7 @@ class cookFinancials(YahooFinancials):
             roic.append(roic_year)
         return roic 
     
+    @_log_step()
     def get_totalCashFromOperatingActivities(self, numofYears=20):
         totalCash = []
         if not(self.cfsh):
@@ -206,7 +264,7 @@ class cookFinancials(YahooFinancials):
             #check if the key is in the dictionary
             if not(self.cfsh[self.ticker][i][date_key].get('operatingCashFlow')):
                 #warning
-                print('operatingCashFlow is not in the dictionary')
+                logger.warning("operatingCashFlow is not in the dictionary for %s", self.ticker)
                 break
             totalCash.append(self.cfsh[self.ticker][i][date_key]['operatingCashFlow'])  
         return totalCash
@@ -300,7 +358,7 @@ class cookFinancials(YahooFinancials):
         eps = self.get_earnings_per_share()
         if not(eps):
             eps = self.get_key_statistics_data()[self.ticker]['trailingEps']
-        print(eps)
+        logger.debug("eps: %s", eps)
         return eps
     
     def get_PE(self):
@@ -424,6 +482,7 @@ class cookFinancials(YahooFinancials):
             vol50day.append(self.priceData[self.ticker]['prices'][length-1-checkDays-i]['volume'])
         return vol3day, np.sum(vol3day)/checkDays, vol50day, np.sum(vol50day)/avrgDays
     
+    @_log_step()
     def vol_strategy(self):
         # Fetch the 3-day and 50-day volume averages
         vol3day, avgVol3day, vol50day, avgVol50day = self.get_vol(3, 200)
@@ -440,6 +499,7 @@ class cookFinancials(YahooFinancials):
         # If neither condition is met, the strategy fails
         return -1
         
+    @_log_step()
     def price_strategy(self):
         closePrice = []
         if not(self.priceData):
@@ -463,6 +523,7 @@ class cookFinancials(YahooFinancials):
             return 1  # Passes price positioning criteria
         return -1  # Fails price strategy
         
+    @_log_step()
     def get_price_from_buffer(self, priceDataStruct, startDate, frame):
         selectedPriceDataStruct = []
         ##for each date
@@ -608,14 +669,11 @@ class cookFinancials(YahooFinancials):
                     counter2 = 0
                 else:
                     counter2 = counter2 + 1
-                    print('start lock the date')
-                    print(priceDate)
+                    logger.debug('start lock the date for %s', priceDate)
                 if counter2 >= counterThr or j == numOfDate2-1:
                     #get local high
-                    print('find the local lowest price')
-                    print(localLowestPrice)
-                    print('date is')
-                    print(localLowestDate)
+                    logger.debug('find the local lowest price: %s', localLowestPrice)
+                    logger.debug('date is %s', localLowestDate)
                     break
                 
         #
@@ -623,6 +681,7 @@ class cookFinancials(YahooFinancials):
             return False, -1, -1, -1, -1
         return flag, localHighestDate, localHighestPrice, localLowestDate, localLowestPrice
                 
+    @_log_step()
     def find_volatility_contraction_pattern(self, startDate):
         """
         Finds all contraction patterns starting from the given date.
@@ -647,6 +706,7 @@ class cookFinancials(YahooFinancials):
         return counterForVCP, recordVCP
             
     
+    @_log_step()
     def get_footPrint(self):
         flag = False
         if not(self.m_recordVCP):
@@ -658,6 +718,7 @@ class cookFinancials(YahooFinancials):
             self.m_footPrint.append([self.m_recordVCP[i][0], self.m_recordVCP[i][2], (self.m_recordVCP[i][1]-self.m_recordVCP[i][3])/self.m_recordVCP[i][1]])
         return self.m_footPrint
     
+    @_log_step()
     def is_pivot_good(self):
         flag = False
         if not(self.m_footPrint):
@@ -669,11 +730,12 @@ class cookFinancials(YahooFinancials):
             current = self.current_stickerPrice
         flag = (self.m_footPrint[-1][2] <= algoParas.PIVOT_PRICE_PERC) and (current> self.m_recordVCP[-1][3])
         #report support and pressure
-        print(self.ticker + ' current price: ' + str(current))
-        print(self.ticker + ' support price: ' + str(self.m_recordVCP[-1][3]))
-        print(self.ticker + ' pressure price: ' + str(self.m_recordVCP[-1][1]))
+        logger.info("%s current price: %s", self.ticker, current)
+        logger.info("%s support price: %s", self.ticker, self.m_recordVCP[-1][3])
+        logger.info("%s pressure price: %s", self.ticker, self.m_recordVCP[-1][1])
         return flag, current, self.m_recordVCP[-1][3], self.m_recordVCP[-1][1]
     
+    @_log_step()
     def is_correction_deep(self):
         flag = False
         if not(self.m_footPrint):
@@ -684,6 +746,7 @@ class cookFinancials(YahooFinancials):
         return correction.max() >= 0.5
     #check the last contraction, is the demand dry
 
+    @_log_step()
     def is_demand_dry(self):
         if not self.m_footPrint:
             self.get_footPrint()
@@ -742,6 +805,7 @@ class cookFinancials(YahooFinancials):
         return np.mean(volume_list) if volume_list else 0
     
     
+    @_log_step()
     def combined_best_strategy(self):
         # Check moving average strategy
         s = True
@@ -833,20 +897,33 @@ class batch_process:
             try:
                 ticker = self.tickers[idx]
                 logger.info("Processing %d/%d: %s", idx+1, total, ticker)
-                x = cookFinancials(ticker)
-                flag = x.combined_best_strategy()
-                if flag == True:
-                    logger.info("%s passes combined strategy", ticker)
-                    superStock.append(ticker)
-                    sp = x.get_price(date_from, 100)
-                    tmpLen = len(sp)
-                    date = []
-                    price = []
-                    volume = []
-                    for i in range(tmpLen):
-                        date.append(sp[i]['formatted_date'])
-                        price.append(sp[i]['close'])
-                        volume.append(sp[i]['volume'])
+                # start a heartbeat thread so we get periodic "still processing" logs
+                start_t = time.time()
+                heartbeat = _start_heartbeat(ticker, interval=30)
+                try:
+                    logger.info("Starting pipeline for %s", ticker)
+                    t0 = time.time()
+                    x = cookFinancials(ticker)
+                    flag = x.combined_best_strategy()
+                    logger.info("combined_best_strategy for %s finished in %.2fs", ticker, time.time()-t0)
+                    if flag == True:
+                        logger.info("%s passes combined strategy", ticker)
+                        superStock.append(ticker)
+                        t1 = time.time()
+                        sp = x.get_price(date_from, 100)
+                        logger.info("get_price for %s finished in %.2fs", ticker, time.time()-t1)
+                        tmpLen = len(sp)
+                        date = []
+                        price = []
+                        volume = []
+                        for i in range(tmpLen):
+                            date.append(sp[i]['formatted_date'])
+                            price.append(sp[i]['close'])
+                            volume.append(sp[i]['volume'])
+                finally:
+                    # stop heartbeat and log per-ticker total elapsed
+                    heartbeat.set()
+                    logger.info("Processing complete for %s; elapsed=%.2fs", ticker, time.time()-start_t)
                     # create figure and axis objects with subplots()
                     fig,ax = plt.subplots(2)
                     fig.suptitle(x.ticker)

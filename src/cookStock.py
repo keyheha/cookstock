@@ -381,6 +381,30 @@ class cookFinancials:
             result.append(data_dict)
         return result
     
+    def get_book_value(self):
+        """Get current book value (stockholders equity) from yfinance."""
+        try:
+            info = self.yf_ticker.info
+            # Try to get book value from info
+            book_value = info.get('bookValue')
+            if book_value:
+                # bookValue in info is per share, multiply by shares outstanding
+                shares = info.get('sharesOutstanding')
+                if shares:
+                    return book_value * shares
+            
+            # Fallback: get from most recent balance sheet
+            if not self.bshData:
+                self.get_balanceSheetHistory()
+            if self.bshData and self.bshData.get(self.ticker):
+                date_key = list(self.bshData[self.ticker][0].keys())[0]
+                return self.bshData[self.ticker][0][date_key].get('stockholdersEquity')
+            
+            return None
+        except Exception:
+            logger.exception("Failed to get book value for %s", self.ticker)
+            return None
+    
     @_log_step()
     def get_BV(self, numofYears=20):
         bv = []
@@ -575,6 +599,10 @@ class cookFinancials:
         except Exception:
             logger.exception("Failed to get EPS for %s", self.ticker)
             return None
+    
+    def get_earnings_per_share(self):
+        """Alias for get_earningsperShare for consistency with naming conventions."""
+        return self.get_earningsperShare()
     
     def get_PE(self):
         try:

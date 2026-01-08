@@ -6,6 +6,7 @@ Created on Sat Jan  9 00:10:18 2021
 @author: sxu
 """
 import numpy as np
+import pandas as pd
 import json as js
 import datetime as dt
 import os.path
@@ -146,13 +147,8 @@ if not basePath:
     logger.error("'cookstock' root not found; please set COOKSTOCK_PATH env var or run from inside the repo.")
     raise RuntimeError("'cookstock' root not found; set COOKSTOCK_PATH or run from inside repo")
 
-yhPath = os.path.join(basePath, 'yahoofinancials')
-# Prefer the inner package directory inside the cloned repo (yahoofinancials/yahoofinancials)
-inner_yh = os.path.join(yhPath, 'yahoofinancials')
-if os.path.isdir(inner_yh):
-    sys.path.insert(0, inner_yh)
-else:
-    sys.path.insert(0, yhPath)
+# Import yfinance
+import yfinance as yf
 
 # Configurable defaults (can be overridden with environment variables)
 HISTORICAL_DAYS_DEFAULT = int(os.getenv("HISTORICAL_DAYS", "120"))
@@ -228,44 +224,8 @@ def _cache_save(ticker, days, data):
             js.dump(data, f)
     except Exception:
         logger.debug("Cache save failed for %s", filepath, exc_info=True)
-def _load_yahoo_from_package():
-    """Try importing YahooFinancials from the installed package (prefer explicit submodule).
-
-    Returns the `YahooFinancials` class if available, otherwise returns None.
-    """
-    try:
-        # Prefer the explicit submodule which is more reliable for the vendored copy
-        from yahoofinancials.yf import YahooFinancials
-        return YahooFinancials
-    except Exception:
-        try:
-            # Fall back to top-level package attribute if present
-            from yahoofinancials import YahooFinancials
-            return YahooFinancials
-        except Exception:
-            return None
-
-# Attempt to load YahooFinancials from site packages / vendored package
-YahooFinancials = _load_yahoo_from_package()
-if YahooFinancials is None:
-    # Last-resort: try loading the local vendored file directly
-    try:
-        import importlib.util
-        yf_path = os.path.join(yhPath, 'yahoofinancials', 'yf.py')
-        spec = importlib.util.spec_from_file_location('yahoofinancials.yf', yf_path)
-        if spec and spec.loader:
-            yf_mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(yf_mod)
-            YahooFinancials = getattr(yf_mod, 'YahooFinancials', None)
-    except Exception:
-        YahooFinancials = None
-
-if YahooFinancials is None:
-    # Fail fast with a clear message rather than silently falling back to `object`.
-    logger.error("yahoofinancials not available. Install project requirements (pip install -r requirements.txt) or set up the vendored package correctly.")
-    raise ImportError("yahoofinancials not available; please install the project's dependencies")
-else:
-    logger.info("yahoofinancials successfully loaded.")
+# yfinance is now imported at module level
+logger.info("yfinance successfully loaded.")
 
 #define some constants
 class algoParas:   
@@ -279,7 +239,7 @@ class algoParas:
     
     
 
-class cookFinancials(YahooFinancials):
+class cookFinancials:
     ticker = ''
     bshData = []
     bshData_quarter = []
@@ -295,21 +255,12 @@ class cookFinancials(YahooFinancials):
     #define some parameters
     
     def __init__(self, ticker, priceData=None, fetch_days=None):
-        # Calls the parent class's initializer (some vendored imports may not accept args)
-        try:
-            super().__init__(ticker)
-        except TypeError:
-            try:
-                super().__init__()
-            except Exception:
-                pass
-        except Exception:
-            logger.debug("Parent init failed for %s", ticker, exc_info=True)
-
         if isinstance(ticker, str):
             self.ticker = ticker.upper()
+            self.yf_ticker = yf.Ticker(self.ticker)
         else:
             self.ticker = [t.upper() for t in ticker]
+            self.yf_ticker = None  # Multiple tickers handled differently
         self._cache = {}
 
         # Determine how many days of history to fetch
@@ -334,17 +285,29 @@ class cookFinancials(YahooFinancials):
             else:
                 logger.info("Fetching last %d days historical price data for %s", days, self.ticker)
                 try:
-                    # log the input dates (use epoch timestamps for API)
+                    # log the input dates (use date strings for yfinance)
                     start_date = date - dt.timedelta(days=days)
-                    start_ts = _to_epoch_seconds(start_date)
-                    end_ts = _to_epoch_seconds(date)
                     logger.info("Fetching data from %s to %s", str(start_date), str(date))
-                    logger.info("Fetching data from %d to %d", start_ts, end_ts)
-                    y = YahooFinancials('AAPL')
-                    res = y.get_historical_price_data(start_ts, end_ts, 'daily')
-                    logger.info(res)
-                    self.priceData = y.get_historical_price_data(start_ts, end_ts, 'daily')
-                    logger.info("Fetched")
+                    
+                    # Use yfinance to fetch historical data
+                    hist = self.yf_ticker.history(start=start_date, end=date)
+                    
+                    # Convert yfinance format to expected format
+                    prices = []
+                    for idx, row in hist.iterrows():
+                        prices.append({
+                            'formatted_date': idx.strftime('%Y-%m-%d'),
+                            'date': int(idx.timestamp()),
+                            'open': row['Open'],
+                            'high': row['High'],
+                            'low': row['Low'],
+                            'close': row['Close'],
+                            'volume': row['Volume'],
+                            'adjclose': row['Close']
+                        })
+                    
+                    self.priceData = {self.ticker: {'prices': prices}}
+                    logger.info("Fetched %d price points", len(prices))
                     _cache_save(self.ticker, days, self.priceData)
                 except Exception:
                     logger.exception("Failed to fetch historical price data for %s", self.ticker)
@@ -359,27 +322,64 @@ class cookFinancials(YahooFinancials):
             self.current_stickerPrice = None
         
     def get_balanceSheetHistory(self):
-        self.bshData = self.get_financial_stmts('annual', 'balance')['balanceSheetHistory']
+        # yfinance uses different attribute names
+        bs = self.yf_ticker.balance_sheet  # Annual by default
+        self.bshData = {self.ticker: self._convert_financials_to_old_format(bs)}
         return self.bshData
     
     def get_balanceSheetHistory_quarter(self):
-        self.bshData_quarter = self.get_financial_stmts('quarterly', 'balance')['balanceSheetHistoryQuarterly']
+        bs_q = self.yf_ticker.quarterly_balance_sheet
+        self.bshData_quarter = {self.ticker: self._convert_financials_to_old_format(bs_q)}
         return self.bshData_quarter
     
     def get_incomeStatementHistory(self):
-        self.ish = self.get_financial_stmts('annual', 'income')['incomeStatementHistory']
+        income = self.yf_ticker.income_stmt
+        self.ish = {self.ticker: self._convert_financials_to_old_format(income)}
         return self.ish
     
     def get_incomeStatementHistory_quarter(self):
-        self.ish_quarter = self.get_financial_stmts('quarterly', 'income')['incomeStatementHistoryQuarterly']
+        income_q = self.yf_ticker.quarterly_income_stmt
+        self.ish_quarter = {self.ticker: self._convert_financials_to_old_format(income_q)}
         return self.ish_quarter
     
     def get_cashflowStatementHistory(self):
-        self.cfsh = self.get_financial_stmts('annual','cash')['cashflowStatementHistory']
+        cf = self.yf_ticker.cashflow
+        self.cfsh = {self.ticker: self._convert_financials_to_old_format(cf)}
         return self.cfsh
+        
     def get_cashflowStatementHistory_quarter(self):
-        self.cfsh_quarter = self.get_financial_stmts('quarterly','cash')['cashflowStatementHistoryQuarterly']
+        cf_q = self.yf_ticker.quarterly_cashflow
+        self.cfsh_quarter = {self.ticker: self._convert_financials_to_old_format(cf_q)}
         return self.cfsh_quarter
+    
+    def _convert_financials_to_old_format(self, df):
+        """Convert yfinance DataFrame format to old yahoofinancials dict format."""
+        if df is None or df.empty:
+            return []
+        result = []
+        for col in df.columns:
+            date_str = col.strftime('%Y-%m-%d')
+            data_dict = {date_str: {}}
+            for idx in df.index:
+                # Convert pandas index to snake_case key
+                key = idx.replace(' ', '')
+                # Common mapping for financial statement keys
+                key_map = {
+                    'StockholdersEquity': 'stockholdersEquity',
+                    'TotalEquityGrossMinorityInterest': 'stockholdersEquity',
+                    'ShortLongTermDebt': 'shortLongTermDebt',
+                    'CurrentDebt': 'shortLongTermDebt',
+                    'LongTermDebt': 'longTermDebt',
+                    'NetIncome': 'netIncome',
+                    'OperatingCashFlow': 'operatingCashFlow'
+                }
+                value = df.loc[idx, col]
+                # Use mapped key if available, otherwise use camelCase version
+                mapped_key = key_map.get(key, key[0].lower() + key[1:] if key else key)
+                if pd.notna(value):
+                    data_dict[date_str][mapped_key] = int(value) if isinstance(value, (int, float)) else value
+            result.append(data_dict)
+        return result
     
     @_log_step()
     def get_BV(self, numofYears=20):
@@ -464,19 +464,31 @@ class cookFinancials(YahooFinancials):
             totalCash.append(self.cfsh[self.ticker][i][date_key]['operatingCashFlow'])  
         return totalCash
     
+    def get_summary_data(self):
+        """Get summary data using yfinance info."""
+        if not self.summaryData:
+            try:
+                info = self.yf_ticker.info
+                self.summaryData = {self.ticker: info}
+            except Exception:
+                logger.exception("Failed to get summary data for %s", self.ticker)
+                self.summaryData = {self.ticker: {}}
+        return self.summaryData
+    
     def get_pricetoSales(self):
         if not(self.summaryData):
             self.summaryData = self.get_summary_data()
         if not(self.summaryData[self.ticker]):
             return 'na'
-        return self.summaryData[self.ticker]['priceToSalesTrailing12Months']
+        return self.summaryData[self.ticker].get('priceToSalesTrailing12Months', 'na')
     
     def get_marketCap_B(self):
         if not(self.summaryData):
             self.summaryData = self.get_summary_data()
         if not(self.summaryData[self.ticker]):
             return 'na'
-        return self.summaryData[self.ticker]['marketCap']/1000000000
+        market_cap = self.summaryData[self.ticker].get('marketCap')
+        return market_cap/1000000000 if market_cap else 'na'
     
     def get_CF_GR_median(self, totalCash):
         gr = []
@@ -550,20 +562,43 @@ class cookFinancials(YahooFinancials):
         return i
     
     def get_earningsperShare(self):
-        eps = self.get_earnings_per_share()
-        if not(eps):
-            eps = self.get_key_statistics_data()[self.ticker]['trailingEps']
-        logger.info("eps: %s", eps)
-        return eps
+        try:
+            info = self.yf_ticker.info
+            eps = info.get('trailingEps')
+            if not eps:
+                # Try getting from financials
+                income = self.yf_ticker.income_stmt
+                if not income.empty and 'Basic EPS' in income.index:
+                    eps = income.loc['Basic EPS'].iloc[0]
+            logger.info("eps: %s", eps)
+            return eps
+        except Exception:
+            logger.exception("Failed to get EPS for %s", self.ticker)
+            return None
     
     def get_PE(self):
-        #print(self._stock_summary_data('trailingPE'))
-        #print(self._stock_summary_data('forwardPE'))
-        if not(self._stock_summary_data('trailingPE')):
-            return self._stock_summary_data('forwardPE')
-        if not(self._stock_summary_data('forwardPE')):
-            return self._stock_summary_data('trailingPE')
-        return (self._stock_summary_data('trailingPE')+self._stock_summary_data('forwardPE'))/2
+        try:
+            info = self.yf_ticker.info
+            trailing_pe = info.get('trailingPE')
+            forward_pe = info.get('forwardPE')
+            
+            if not trailing_pe:
+                return forward_pe
+            if not forward_pe:
+                return trailing_pe
+            return (trailing_pe + forward_pe) / 2
+        except Exception:
+            logger.exception("Failed to get PE for %s", self.ticker)
+            return None
+    
+    def get_current_price(self):
+        """Get current stock price from yfinance."""
+        try:
+            info = self.yf_ticker.info
+            return info.get('currentPrice') or info.get('regularMarketPrice')
+        except Exception:
+            logger.exception("Failed to get current price for %s", self.ticker)
+            return None
     
     def get_decision(self,suggestPrice, stockprice):
         #print('suggested price:', suggestPrice)
@@ -1124,17 +1159,39 @@ class batch_process:
                 days = HISTORICAL_DAYS_DEFAULT
                 logger.info("Prefetching last %d days of historical price data concurrently for %d tickers", days, total)
                 try:
-                    yahoo_all = YahooFinancials(self.tickers, concurrent=True, max_workers=PREFETCH_WORKERS)
                     start_date = dt.date.today() - dt.timedelta(days=days)
-                    start_ts = _to_epoch_seconds(start_date)
-                    end_ts = _to_epoch_seconds(dt.date.today())
-                    price_map = yahoo_all.get_historical_price_data(start_ts, end_ts, 'daily')
-                    # Save individual caches
-                    for t, pdata in (price_map.items() if isinstance(price_map, dict) else []):
+                    end_date = dt.date.today()
+                    
+                    # Use yfinance download for multiple tickers
+                    hist_data = yf.download(self.tickers, start=start_date, end=end_date, group_by='ticker', progress=False)
+                    
+                    # Convert to expected format
+                    price_map = {}
+                    for ticker in self.tickers:
                         try:
-                            _cache_save(t, days, {t: pdata})
+                            if len(self.tickers) > 1:
+                                ticker_data = hist_data[ticker]
+                            else:
+                                ticker_data = hist_data
+                            
+                            prices = []
+                            for idx, row in ticker_data.iterrows():
+                                if pd.notna(row['Close']):
+                                    prices.append({
+                                        'formatted_date': idx.strftime('%Y-%m-%d'),
+                                        'date': int(idx.timestamp()),
+                                        'open': row['Open'],
+                                        'high': row['High'],
+                                        'low': row['Low'],
+                                        'close': row['Close'],
+                                        'volume': row['Volume'],
+                                        'adjclose': row['Close']
+                                    })
+                            price_map[ticker] = {'prices': prices}
+                            _cache_save(ticker, days, {ticker: {'prices': prices}})
                         except Exception:
-                            logger.debug("Failed to cache prefetch for %s", t, exc_info=True)
+                            logger.debug("Failed to process prefetch for %s", ticker, exc_info=True)
+                    
                     logger.info("Prefetch complete")
                 except Exception:
                     logger.exception("Prefetch failed; continuing without prefetch")

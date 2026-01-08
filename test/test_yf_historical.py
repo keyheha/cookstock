@@ -12,6 +12,7 @@ import json
 import argparse
 import datetime as dt
 import time
+from yahoofinancials import YahooFinancials
 
 
 def _to_epoch_seconds(val):
@@ -32,14 +33,6 @@ def _to_epoch_seconds(val):
     if isinstance(val, dt.datetime):
         return int(time.mktime(val.timetuple()))
     raise ValueError(f"Cannot convert {val!r} to epoch seconds")
-
-
-def _load_yahoo_from_package():
-    try:
-        from yahoofinancials.yf import YahooFinancials
-        return YahooFinancials
-    except Exception:
-        return None
 
 
 def _load_yahoo_from_repo():
@@ -64,11 +57,6 @@ def main(argv=None):
     parser.add_argument('--days', type=int, default=120, help='Number of days to fetch (used when --start/--end not provided). Default: 120')
 
     args = parser.parse_args(argv)
-
-    YahooFinancials = _load_yahoo_from_package() or _load_yahoo_from_repo()
-    if YahooFinancials is None:
-        print('SKIP: yahoofinancials not available; activate venv or install dependencies')
-        return 0
 
     # Determine date range
     if args.start and args.end:

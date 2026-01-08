@@ -46,17 +46,15 @@ CUSTOM_TICKERS_HK = [
     '0981.HK',  # SMIC (Semiconductor Manufacturing International)
     '0992.HK',  # Lenovo Group
     '1024.HK',  # Kuaishou Technology
-    '1299.HK',  # AIA Group
     '1398.HK',  # Industrial and Commercial Bank of China (ICBC)
     '1810.HK',  # Xiaomi Corporation
     '2018.HK',  # AAC Technologies
     '2638.HK',  # HK Electric Investments
     '3328.HK',  # Bank of Communications
     '3690.HK',  # Meituan
-    '3896.HK',  # Zhaojin Mining Industry
     '6823.HK',  # HKT (Hong Kong Telecommunications)
     '9626.HK',  # Bilibili
-    '9660.HK',  # BeiGene
+    '9660.HK',  # Horizon Robotics
     '9888.HK',  # Baidu
     '9988.HK',  # Alibaba Group
 ]

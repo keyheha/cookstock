@@ -4,6 +4,11 @@
 Example script demonstrating how to use custom ticker lists
 for US and UK markets.
 
+Usage:
+    python runBatch_customTickers.py [market]
+    
+    market: hk | us | uk | all (default: all)
+
 Created on Wednesday 01/08/2026
 @author: GitHub Copilot
 """
@@ -79,81 +84,67 @@ reload(get_tickers)
 from get_tickers import get_custom_tickers
 
 # ============================================================================
-# EXAMPLE 1: Using custom US tickers
+# Parse command line arguments
 # ============================================================================
-print("\n" + "="*70)
-print("EXAMPLE 1: Using Custom US Tickers")
-print("="*70)
+# Get market parameter from command line (default: 'all')
+market_param = sys.argv[1].lower() if len(sys.argv) > 1 else 'all'
 
-# Get custom US tickers
-us_tickers = get_custom_tickers('US')
-print(f"Processing {len(us_tickers)} US stocks")
-print(f"First 5 tickers: {us_tickers[:5]}")
-
-# Create batch processor with custom US tickers
-y_us = batch_process(us_tickers, 'CustomUS')
-y_us.batch_pipeline_full()  # Uncomment to run
-
-# ============================================================================
-# EXAMPLE 2: Using custom UK tickers
-# ============================================================================
-print("\n" + "="*70)
-print("EXAMPLE 2: Using Custom UK Tickers")
-print("="*70)
-
-# Get custom UK tickers
-uk_tickers = get_custom_tickers('UK')
-print(f"Processing {len(uk_tickers)} UK stocks")
-print(f"First 5 tickers: {uk_tickers[:5]}")
-
-# Create batch processor with custom UK tickers
-y_uk = batch_process(uk_tickers, 'CustomUK')
-y_uk.batch_pipeline_full()  # Uncomment to run
-
-# ============================================================================
-# EXAMPLE 3: Using ALL markets (US + UK + HK)
-# ============================================================================
-print("\n" + "="*70)
-print("EXAMPLE 3: Using ALL Markets (US + UK + HK)")
-print("="*70)
-
-# Get all tickers from US, UK, and HK markets
-all_tickers = get_custom_tickers('ALL')
-print(f"Processing {len(all_tickers)} stocks (US + UK + HK)")
-print(f"First 5 tickers: {all_tickers[:5]}")
-print(f"Last 5 tickers: {all_tickers[-5:]}")
-
-# Create batch processor with all market tickers
-y_all = batch_process(all_tickers, 'CustomALL')
-y_all.batch_pipeline_full()  # Uncomment to run
-
-# ============================================================================
-# EXAMPLE 4: Using market parameter directly in batch_process
-# ============================================================================
-# NOTE: This example is commented out because it duplicates Examples 1-3 above.
-# It demonstrates an alternative syntax using the market= parameter, but produces
-# identical results. Uncomment only if you want to see this alternative approach.
-#
-# print("\n" + "="*70)
-# print("EXAMPLE 4: Using Market Parameter in batch_process")
-# print("="*70)
-#
-# # Create batch processor using market parameter (no need to call get_custom_tickers)
-# # This will automatically use the custom US ticker list
-# y_market_us = batch_process(None, 'CustomUS_Direct', market='US')
-# print(f"Initialized with {len(y_market_us.tickers)} US tickers via market parameter")
-#
-# # For UK market
-# y_market_uk = batch_process(None, 'CustomUK_Direct', market='UK')
-# print(f"Initialized with {len(y_market_uk.tickers)} UK tickers via market parameter")
-#
-# # For both markets
-# y_market_both = batch_process(None, 'CustomBoth_Direct', market='BOTH')
-# print(f"Initialized with {len(y_market_both.tickers)} tickers (US+UK) via market parameter")
-#
-# # Uncomment below to run the pipeline
-# y_market_us.batch_pipeline_full()
+# Validate market parameter
+valid_markets = ['hk', 'us', 'uk', 'all']
+if market_param not in valid_markets:
+    print(f"Error: Invalid market parameter '{market_param}'")
+    print(f"Valid options: {', '.join(valid_markets)}")
+    sys.exit(1)
 
 print("\n" + "="*70)
-print("All examples completed. Uncomment the .batch_pipeline_full() lines to run.")
+print(f"Running Custom Tickers Analysis - Market: {market_param.upper()}")
 print("="*70)
+
+# ============================================================================
+# Process based on market parameter
+# ============================================================================
+if market_param == 'us':
+    # Process US market only
+    print("\nProcessing US Market")
+    us_tickers = get_custom_tickers('US')
+    print(f"Processing {len(us_tickers)} US stocks")
+    print(f"First 5 tickers: {us_tickers[:5]}")
+    
+    y_us = batch_process(us_tickers, 'CustomUS')
+    y_us.batch_pipeline_full()
+
+elif market_param == 'uk':
+    # Process UK market only
+    print("\nProcessing UK Market")
+    uk_tickers = get_custom_tickers('UK')
+    print(f"Processing {len(uk_tickers)} UK stocks")
+    print(f"First 5 tickers: {uk_tickers[:5]}")
+    
+    y_uk = batch_process(uk_tickers, 'CustomUK')
+    y_uk.batch_pipeline_full()
+
+elif market_param == 'hk':
+    # Process HK market only
+    print("\nProcessing HK Market")
+    hk_tickers = get_custom_tickers('HK')
+    print(f"Processing {len(hk_tickers)} HK stocks")
+    print(f"First 5 tickers: {hk_tickers[:5]}")
+    
+    y_hk = batch_process(hk_tickers, 'CustomHK')
+    y_hk.batch_pipeline_full()
+
+else:  # market_param == 'all'
+    # Process all markets
+    print("\nProcessing ALL Markets (US + UK + HK)")
+    all_tickers = get_custom_tickers('ALL')
+    print(f"Processing {len(all_tickers)} stocks (US + UK + HK)")
+    print(f"First 5 tickers: {all_tickers[:5]}")
+    print(f"Last 5 tickers: {all_tickers[-5:]}")
+    
+    y_all = batch_process(all_tickers, 'CustomALL')
+    y_all.batch_pipeline_full()
+
+print("\n" + "="*70)
+print("Processing completed!")
+print("="*70)
+

@@ -314,9 +314,14 @@ class cookFinancials:
                     self.priceData = {self.ticker: {'prices': []}}
 
         logger.info("Initialized cookFinancials for ticker: %s", self.ticker)
-        #get current_stickerPrice from self.priceData, guard against missing data
+        # Get fresh current price from yfinance instead of cached historical close
+        # This ensures we have the latest market price
         try:
-            self.current_stickerPrice = self.priceData[self.ticker]['prices'][-1]['close']
+            self.current_stickerPrice = self.get_current_price()
+            if not self.current_stickerPrice:
+                # Fallback to last cached price if live price unavailable
+                self.current_stickerPrice = self.priceData[self.ticker]['prices'][-1]['close']
+                logger.debug("Using cached close price for %s", self.ticker)
         except Exception:
             logger.debug("Could not set current_stickerPrice for %s", self.ticker)
             self.current_stickerPrice = None
@@ -1480,7 +1485,7 @@ def setup_csv_file(filepath):
         os.makedirs(basedir)
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Ticker', 'Buy Signal', 'Current Price', 'Support Price', 'Pressure Price', 
+        writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Current Price', 'Support Price', 'Pressure Price', 
                         'Good Pivot', 'Deep Correction', 'Demand Dry', 'Chart'])
     logger.info("Created CSV file: %s", filepath)
 
@@ -1490,9 +1495,18 @@ def append_to_csv(filepath, ticker, current_price, support_price, pressure_price
     import csv
     # Calculate buy signal: True if all conditions met
     buy_signal = 'YES' if (is_good_pivot and not is_deep_correction and is_demand_dry) else 'NO'
+    
+    # Calculate sell signal: 
+    # - Deep correction (>50% drop) = breakdown
+    # - Price below support AND not good pivot = broken support
+    # - Demand NOT dry AND deep correction = distribution phase
+    sell_signal = 'YES' if (is_deep_correction or 
+                           (not is_good_pivot and current_price < support_price) or
+                           (is_deep_correction and not is_demand_dry)) else 'NO'
+    
     with open(filepath, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow([ticker, buy_signal, current_price, support_price, pressure_price,
+        writer.writerow([ticker, buy_signal, sell_signal, current_price, support_price, pressure_price,
                         is_good_pivot, is_deep_correction, is_demand_dry, chart_path])
 
 def get_ticker_market(ticker):
@@ -1510,7 +1524,7 @@ def get_ticker_market(ticker):
         return 'US'
 
 def sort_csv_by_buy_signal(filepath):
-    """Sort CSV file by Buy Signal column (YES first, then NO)."""
+    """Sort CSV file by Buy Signal (YES first), then Sell Signal (YES last)."""
     import csv
     try:
         # Read all rows
@@ -1523,9 +1537,9 @@ def sort_csv_by_buy_signal(filepath):
         if not rows:
             return
         
-        # Sort by Buy Signal column (index 1): YES before NO
-        # Using reverse=True because 'YES' > 'NO' alphabetically
-        rows.sort(key=lambda row: row[1], reverse=True)
+        # Sort by: Buy Signal (YES first), then Sell Signal (NO first)
+        # Using tuple sort: (not buy_yes, sell_yes) gives us buy YES first, sell NO first
+        rows.sort(key=lambda row: (row[1] != 'YES', row[2] == 'YES'))
         
         # Write back sorted data
         with open(filepath, 'w', newline='') as f:

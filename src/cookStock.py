@@ -1289,103 +1289,104 @@ class batch_process:
                             date.append(sp[i]['formatted_date'])
                             price.append(sp[i]['close'])
                             volume.append(sp[i]['volume'])
+                        
+                        # create figure and axis objects with subplots()
+                        fig,ax = plt.subplots(2)
+                        fig.suptitle(x.ticker)
+                        # make a plot
+                        ax[0].plot(date, price, color="blue", marker="o")
+                        # set x-axis label
+                        ax[0].set_xlabel("date",fontsize=14)
+                        # set y-axis label
+                        ax[0].set_ylabel("stock price",color="blue",fontsize=14)
+                        
+                        # twin object for two different y-axis on the sample plot
+                        # make a plot with different y-axis using second axis object
+                        ax[1].bar(date, np.asarray(volume)/10**6 ,color="green")
+                        ax[1].set_ylabel("volume (m)",color="green",fontsize=14)
+                        #ax[1].set_ylim([0, 100])
+                        
+                        # Set x-ticks to display every 10th date and include the last date
+                        xticks = np.arange(0, len(date), 10).tolist()
+                        if len(date) - 1 not in xticks:  # Check if the last date is already included
+                            xticks.append(len(date) - 1)  # Add the last date index to x-ticks
+
+                        ax[0].set_xticks(xticks)
+                        ax[1].set_xticks(xticks)
+
+                        # Format date labels for readability
+                        fig.autofmt_xdate(rotation=45)
+                        
+                        logger.info("Highest in 5 days for %s: %s", ticker, x.get_highest_in5days(date_from))
+                        
+                        counter, record = x.find_volatility_contraction_pattern(date_from)
+                        
+                        if counter > 0:
+                            logger.info("Found %d VCP pattern(s) for %s", counter, ticker)
+                            for i in range(counter):
+                                ax[0].plot([record[i][0], record[i][2]], [record[i][1], record[i][3]], 'r')
+                            
+                            # ax[0].set_xticks(np.arange(0, len(date)+1, 12))
+                            # ax[1].set_xticks(np.arange(0, len(date)+1, 12))
+                            
+                            footprint = x.get_footPrint()
+                            logger.info("footprint for %s: %s", ticker, footprint)
+                            isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
+                            logger.info("is_good_pivot=%s for %s", isGoodPivot, ticker)
+                            isDeepCor = x.is_correction_deep()
+                            logger.info("is_deep_correction=%s for %s", isDeepCor, ticker)
+                            isDemandDry, startDate, endDate, volume_ls, slope, interY, recentStart, recentEnd, volume_re, slopeRecet, interYRecent = x.is_demand_dry()
+                            logger.info("is_demand_dry=%s for %s", isDemandDry, ticker)
+        
+                            ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
+                                        'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry)}}    
+
+                            for ind, item in enumerate(date):
+                                if item == startDate:
+                                    logger.info("start index for demand dry for %s: %d", ticker, ind)
+                                    break
+                            x_axis = []
+                            for i in range(len(volume_ls)):
+                                x_axis.append(ind+i)
+                            x_axis = np.array(x_axis)
+                            
+                            y = slope*x_axis-slope*ind + volume_ls[0]
+                            ax[1].plot(np.asarray(date)[x_axis], y/10**6, color="red",linewidth=4)
+                            
+                            for ind, item in enumerate(date):
+                                if item == recentStart:
+                                    logger.info("recent start index for %s: %d", ticker, ind)
+                                    break
+                            x_axis = []
+                            for i in range(len(volume_re)):
+                                x_axis.append(ind+i)
+                            x_axis = np.array(x_axis)
+                            yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
+                            ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
+                            fig.show()
+                            
+                            figName = os.path.join(self.resultsPath, ticker+'.jpg')
+                            #only save the ones passing all criterion
+                            if isGoodPivot and not(isDeepCor) and isDemandDry:
+                                fig.savefig(figName,
+                                            format='jpeg',
+                                            dpi=100,
+                                            bbox_inches='tight')
+                                logger.info("Saved figure %s", figName)
+                                #add link to the json file
+                                ticker_data[ticker]['fig'] = figName
+                                
+                            append_to_json(self.result_file, ticker_data)
+                            # Determine market from ticker suffix and write to appropriate CSV
+                            market = get_ticker_market(ticker)
+                            csv_file = self.csv_files.get(market, self.csv_files['US'])
+                            append_to_csv(csv_file, ticker, currentPrice, supportPrice, pressurePrice, 
+                                         isGoodPivot, isDeepCor, isDemandDry, 
+                                         figName if (isGoodPivot and not(isDeepCor) and isDemandDry) else '')
                 finally:
                     # stop heartbeat and log per-ticker total elapsed
                     heartbeat.set()
                     logger.info("Processing complete for %s; elapsed=%.2fs", ticker, time.time()-start_t)
-                    # create figure and axis objects with subplots()
-                    fig,ax = plt.subplots(2)
-                    fig.suptitle(x.ticker)
-                    # make a plot
-                    ax[0].plot(date, price, color="blue", marker="o")
-                    # set x-axis label
-                    ax[0].set_xlabel("date",fontsize=14)
-                    # set y-axis label
-                    ax[0].set_ylabel("stock price",color="blue",fontsize=14)
-                    
-                    # twin object for two different y-axis on the sample plot
-                    # make a plot with different y-axis using second axis object
-                    ax[1].bar(date, np.asarray(volume)/10**6 ,color="green")
-                    ax[1].set_ylabel("volume (m)",color="green",fontsize=14)
-                    #ax[1].set_ylim([0, 100])
-                    
-                    # Set x-ticks to display every 10th date and include the last date
-                    xticks = np.arange(0, len(date), 10).tolist()
-                    if len(date) - 1 not in xticks:  # Check if the last date is already included
-                        xticks.append(len(date) - 1)  # Add the last date index to x-ticks
-
-                    ax[0].set_xticks(xticks)
-                    ax[1].set_xticks(xticks)
-
-                    # Format date labels for readability
-                    fig.autofmt_xdate(rotation=45)
-                    
-                    logger.info("Highest in 5 days for %s: %s", ticker, x.get_highest_in5days(date_from))
-                    
-                    counter, record = x.find_volatility_contraction_pattern(date_from)
-                    
-                    if counter > 0:
-                        logger.info("Found %d VCP pattern(s) for %s", counter, ticker)
-                        for i in range(counter):
-                            ax[0].plot([record[i][0], record[i][2]], [record[i][1], record[i][3]], 'r')
-                        
-                        # ax[0].set_xticks(np.arange(0, len(date)+1, 12))
-                        # ax[1].set_xticks(np.arange(0, len(date)+1, 12))
-                        
-                        footprint = x.get_footPrint()
-                        logger.info("footprint for %s: %s", ticker, footprint)
-                        isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
-                        logger.info("is_good_pivot=%s for %s", isGoodPivot, ticker)
-                        isDeepCor = x.is_correction_deep()
-                        logger.info("is_deep_correction=%s for %s", isDeepCor, ticker)
-                        isDemandDry, startDate, endDate, volume_ls, slope, interY, recentStart, recentEnd, volume_re, slopeRecet, interYRecent = x.is_demand_dry()
-                        logger.info("is_demand_dry=%s for %s", isDemandDry, ticker)
-    
-                        ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
-                                    'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry)}}    
-
-                        for ind, item in enumerate(date):
-                            if item == startDate:
-                                logger.info("start index for demand dry for %s: %d", ticker, ind)
-                                break
-                        x_axis = []
-                        for i in range(len(volume_ls)):
-                            x_axis.append(ind+i)
-                        x_axis = np.array(x_axis)
-                        
-                        y = slope*x_axis-slope*ind + volume_ls[0]
-                        ax[1].plot(np.asarray(date)[x_axis], y/10**6, color="red",linewidth=4)
-                        
-                        for ind, item in enumerate(date):
-                            if item == recentStart:
-                                logger.info("recent start index for %s: %d", ticker, ind)
-                                break
-                        x_axis = []
-                        for i in range(len(volume_re)):
-                            x_axis.append(ind+i)
-                        x_axis = np.array(x_axis)
-                        yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
-                        ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
-                        fig.show()
-                        
-                        figName = os.path.join(self.resultsPath, ticker+'.jpg')
-                        #only save the ones passing all criterion
-                        if isGoodPivot and not(isDeepCor) and isDemandDry:
-                            fig.savefig(figName,
-                                        format='jpeg',
-                                        dpi=100,
-                                        bbox_inches='tight')
-                            logger.info("Saved figure %s", figName)
-                            #add link to the json file
-                            ticker_data[ticker]['fig'] = figName
-                            
-                        append_to_json(self.result_file, ticker_data)
-                        # Determine market from ticker suffix and write to appropriate CSV
-                        market = get_ticker_market(ticker)
-                        csv_file = self.csv_files.get(market, self.csv_files['US'])
-                        append_to_csv(csv_file, ticker, currentPrice, supportPrice, pressurePrice, 
-                                     isGoodPivot, isDeepCor, isDemandDry, 
-                                     figName if (isGoodPivot and not(isDeepCor) and isDemandDry) else '')
             except Exception:
                 logger.exception("Error processing ticker %s", ticker)
                 pass

@@ -828,16 +828,42 @@ class cookFinancials:
             end_ts = _to_epoch_seconds(date)
             self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         length = len(self.priceData[self.ticker]['prices'])
+        
+        # Check if we have any price data
+        if length == 0:
+            logger.warning("price_strategy: No price data available for %s", self.ticker)
+            return -1
+        
         for i in range(length):
             if not(self.priceData[self.ticker]['prices'][i]['close']):
-                self.priceData[self.ticker]['prices'][i]['close'] = self.priceData[self.ticker]['prices'][i-1]['close']
+                if i > 0:
+                    self.priceData[self.ticker]['prices'][i]['close'] = self.priceData[self.ticker]['prices'][i-1]['close']
+                else:
+                    # First element has no close price, skip it
+                    continue
             closePrice.append(self.priceData[self.ticker]['prices'][i]['close'])
+        
+        # Check if we collected any close prices
+        if not closePrice:
+            logger.warning("price_strategy: No valid close prices for %s", self.ticker)
+            return -1
+        
         lowestPrice = np.min(closePrice)
         if not self.current_stickerPrice:
             self.current_stickerPrice = self.get_current_price()
         currentPrice = self.current_stickerPrice
+        
+        # Check if currentPrice is valid
+        if currentPrice is None:
+            logger.warning("price_strategy: No current price available for %s", self.ticker)
+            return -1
+        
         highestPrice = np.max(closePrice)
     # Calculate range position as a percentage
+        if highestPrice == lowestPrice:
+            logger.warning("price_strategy: No price variation for %s (highestPrice=%s, lowestPrice=%s)", self.ticker, highestPrice, lowestPrice)
+            return -1
+        
         range_position = (currentPrice - lowestPrice) / (highestPrice - lowestPrice)
 
         # Conditions: within the upper third but below 90% of the 1-year high

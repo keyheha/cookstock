@@ -1824,7 +1824,7 @@ def setup_csv_file(filepath):
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Swing Trade Entry', 'Current Price', 'Support Price', 'Pressure Price', 
-                        'Price to Support', 'Good Pivot', 'Deep Correction', 'Demand Dry'])
+                        'Price to Support %', 'Good Pivot', 'Deep Correction', 'Demand Dry'])
     logger.info("Created/reset CSV file: %s", filepath)
 
 def append_to_csv(filepath, ticker, current_price, support_price, pressure_price,
@@ -1845,9 +1845,13 @@ def append_to_csv(filepath, ticker, current_price, support_price, pressure_price
     # Swing trade entry signal
     swing_entry = 'YES' if is_swing_trade_entry else 'NO'
     
-    # Calculate price to support (current price - support price)
+    # Calculate price to support as percentage: ((current_price - support_price) / support_price) * 100
     try:
-        price_to_support = round(float(current_price) - float(support_price), 2)
+        support_val = float(support_price)
+        if support_val != 0:
+            price_to_support = round(((float(current_price) - support_val) / support_val) * 100, 2)
+        else:
+            price_to_support = 0
     except (ValueError, TypeError):
         price_to_support = 0
     
@@ -1871,7 +1875,7 @@ def get_ticker_market(ticker):
         return 'US'
 
 def sort_csv_by_buy_signal(filepath):
-    """Sort CSV file by Buy Signal (YES first), then by Price to Support (closest to support first), then Sell Signal (YES last)."""
+    """Sort CSV file by Buy Signal (YES first), then by Price to Support % (smallest percentage first), then Sell Signal (YES last)."""
     import csv
     try:
         # Read all rows
@@ -1884,17 +1888,17 @@ def sort_csv_by_buy_signal(filepath):
         if not rows:
             return
         
-        # Sort by: Buy Signal (YES first), then Price to Support (smallest first for buy signals), then Sell Signal (NO first)
-        # Using tuple sort: (not buy_yes, price_to_support if buy_yes else large_number, sell_yes)
+        # Sort by: Buy Signal (YES first), then Price to Support % (smallest percentage first for buy signals), then Sell Signal (NO first)
+        # Using tuple sort: (not buy_yes, price_to_support_pct if buy_yes else large_number, sell_yes)
         def sort_key(row):
             buy_yes = row[1] == 'YES'
             sell_yes = row[2] == 'YES'
             try:
-                # Price to Support is at index 7 (after Pressure Price)
-                price_to_support = float(row[7]) if buy_yes else float('inf')
+                # Price to Support % is at index 7 (after Pressure Price)
+                price_to_support_pct = float(row[7]) if buy_yes else float('inf')
             except (ValueError, IndexError):
-                price_to_support = float('inf')
-            return (not buy_yes, price_to_support, sell_yes)
+                price_to_support_pct = float('inf')
+            return (not buy_yes, price_to_support_pct, sell_yes)
         
         rows.sort(key=sort_key)
         

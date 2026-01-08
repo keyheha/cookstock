@@ -129,25 +129,29 @@ y_both.batch_pipeline_full()  # Uncomment to run
 # ============================================================================
 # EXAMPLE 4: Using market parameter directly in batch_process
 # ============================================================================
-print("\n" + "="*70)
-print("EXAMPLE 4: Using Market Parameter in batch_process")
-print("="*70)
-
-# Create batch processor using market parameter (no need to call get_custom_tickers)
-# This will automatically use the custom US ticker list
-y_market_us = batch_process(None, 'CustomUS_Direct', market='US')
-print(f"Initialized with {len(y_market_us.tickers)} US tickers via market parameter")
-
-# For UK market
-y_market_uk = batch_process(None, 'CustomUK_Direct', market='UK')
-print(f"Initialized with {len(y_market_uk.tickers)} UK tickers via market parameter")
-
-# For both markets
-y_market_both = batch_process(None, 'CustomBoth_Direct', market='BOTH')
-print(f"Initialized with {len(y_market_both.tickers)} tickers (US+UK) via market parameter")
-
-# Uncomment below to run the pipeline
-y_market_us.batch_pipeline_full()
+# NOTE: This example is commented out because it duplicates Examples 1-3 above.
+# It demonstrates an alternative syntax using the market= parameter, but produces
+# identical results. Uncomment only if you want to see this alternative approach.
+#
+# print("\n" + "="*70)
+# print("EXAMPLE 4: Using Market Parameter in batch_process")
+# print("="*70)
+#
+# # Create batch processor using market parameter (no need to call get_custom_tickers)
+# # This will automatically use the custom US ticker list
+# y_market_us = batch_process(None, 'CustomUS_Direct', market='US')
+# print(f"Initialized with {len(y_market_us.tickers)} US tickers via market parameter")
+#
+# # For UK market
+# y_market_uk = batch_process(None, 'CustomUK_Direct', market='UK')
+# print(f"Initialized with {len(y_market_uk.tickers)} UK tickers via market parameter")
+#
+# # For both markets
+# y_market_both = batch_process(None, 'CustomBoth_Direct', market='BOTH')
+# print(f"Initialized with {len(y_market_both.tickers)} tickers (US+UK) via market parameter")
+#
+# # Uncomment below to run the pipeline
+# y_market_us.batch_pipeline_full()
 
 print("\n" + "="*70)
 print("All examples completed. Uncomment the .batch_pipeline_full() lines to run.")

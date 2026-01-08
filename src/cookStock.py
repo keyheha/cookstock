@@ -1155,7 +1155,15 @@ class batch_process:
         self.resultsPath = os.path.join(basePath, 'results', current_date)
         file = sectors + '.json'
         self.result_file = setup_result_file(self.resultsPath, file)
-        logger.info("Initialized batch_process for %d tickers; results -> %s", len(self.tickers), self.result_file) 
+        # Setup market-specific CSV files with __ prefix to sort at top
+        self.csv_files = {
+            'US': os.path.join(self.resultsPath, '__result_US.csv'),
+            'UK': os.path.join(self.resultsPath, '__result_UK.csv'),
+            'HK': os.path.join(self.resultsPath, '__result_HK.csv')
+        }
+        for market, csv_file in self.csv_files.items():
+            setup_csv_file(csv_file)
+        logger.info("Initialized batch_process for %d tickers; results -> %s, csv -> %s", len(self.tickers), self.result_file, list(self.csv_files.values())) 
             
     def batch_strategy(self):
         superStock=[]
@@ -1367,6 +1375,12 @@ class batch_process:
                             ticker_data[ticker]['fig'] = figName
                             
                         append_to_json(self.result_file, ticker_data)
+                        # Determine market from ticker suffix and write to appropriate CSV
+                        market = get_ticker_market(ticker)
+                        csv_file = self.csv_files.get(market, self.csv_files['US'])
+                        append_to_csv(csv_file, ticker, currentPrice, supportPrice, pressurePrice, 
+                                     isGoodPivot, isDeepCor, isDemandDry, 
+                                     figName if (isGoodPivot and not(isDeepCor) and isDemandDry) else '')
             except Exception:
                 logger.exception("Error processing ticker %s", ticker)
                 pass
@@ -1452,3 +1466,40 @@ def setup_result_file(basePath, file):
     filepath = os.path.join(basePath, file)
     save_json(filepath, {"data": []})
     return filepath
+
+def setup_csv_file(filepath):
+    """Initialize CSV file with headers."""
+    import csv
+    basedir = os.path.dirname(filepath)
+    if not os.path.exists(basedir):
+        os.makedirs(basedir)
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Ticker', 'Buy Signal', 'Current Price', 'Support Price', 'Pressure Price', 
+                        'Good Pivot', 'Deep Correction', 'Demand Dry', 'Chart'])
+    logger.info("Created CSV file: %s", filepath)
+
+def append_to_csv(filepath, ticker, current_price, support_price, pressure_price,
+                 is_good_pivot, is_deep_correction, is_demand_dry, chart_path):
+    """Append a row to the CSV file."""
+    import csv
+    # Calculate buy signal: True if all conditions met
+    buy_signal = 'YES' if (is_good_pivot and not is_deep_correction and is_demand_dry) else 'NO'
+    with open(filepath, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([ticker, buy_signal, current_price, support_price, pressure_price,
+                        is_good_pivot, is_deep_correction, is_demand_dry, chart_path])
+
+def get_ticker_market(ticker):
+    """Determine the market from ticker suffix.
+    
+    Returns:
+        'US', 'UK', or 'HK' based on ticker suffix
+    """
+    ticker_upper = ticker.upper()
+    if '.L' in ticker_upper:  # London Stock Exchange
+        return 'UK'
+    elif '.HK' in ticker_upper:  # Hong Kong Stock Exchange
+        return 'HK'
+    else:  # Default to US (no suffix or other suffixes)
+        return 'US'

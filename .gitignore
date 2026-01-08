@@ -4,3 +4,4 @@ update_results.sh
 cronjob.log
 crontab.log
 src/__pycache__
+test/__pycache__

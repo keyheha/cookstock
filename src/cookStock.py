@@ -1815,20 +1815,17 @@ def setup_result_file(basePath, file):
     return filepath
 
 def setup_csv_file(filepath):
-    """Initialize CSV file with headers only if it doesn't exist."""
+    """Initialize CSV file with headers, replacing any existing file."""
     import csv
     basedir = os.path.dirname(filepath)
     if not os.path.exists(basedir):
         os.makedirs(basedir)
-    # Only create and write headers if file doesn't exist
-    if not os.path.exists(filepath):
-        with open(filepath, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Swing Trade Entry', 'Current Price', 'Support Price', 'Pressure Price', 
-                            'Good Pivot', 'Deep Correction', 'Demand Dry'])
-        logger.info("Created CSV file: %s", filepath)
-    else:
-        logger.info("CSV file already exists, will append: %s", filepath)
+    # Always create fresh CSV file with headers (overwrite if exists)
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Swing Trade Entry', 'Current Price', 'Support Price', 'Pressure Price', 
+                        'Good Pivot', 'Deep Correction', 'Demand Dry'])
+    logger.info("Created/reset CSV file: %s", filepath)
 
 def append_to_csv(filepath, ticker, current_price, support_price, pressure_price,
                  is_good_pivot, is_deep_correction, is_demand_dry, is_swing_trade_entry):

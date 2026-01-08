@@ -1515,14 +1515,11 @@ class batch_process:
                         isDeepCor = False
                         isDemandDry = False
                         counter = 0
+                        volume_ls = []
+                        volume_re = []
                     
-                    # Write to CSV for ALL tickers
-                    market = get_ticker_market(ticker)
-                    csv_file = self.csv_files.get(market, self.csv_files['US'])
+                    # Initialize figName
                     figName = ''
-                    append_to_csv(csv_file, ticker, currentPrice if currentPrice else 0, 
-                                 supportPrice, pressurePrice, 
-                                 isGoodPivot, isDeepCor, isDemandDry, isSwingEntry, figName)
                     
                     # Now check combined strategy for detailed analysis and charts
                     flag = x.combined_best_strategy()
@@ -1622,8 +1619,17 @@ class batch_process:
                             logger.info("Saved figure %s", figName)
                             #add link to the json file
                             ticker_data[ticker]['fig'] = figName
+                        else:
+                            figName = ''  # No chart saved if doesn't meet criteria
                             
                         append_to_json(self.result_file, ticker_data)
+                    
+                    # Write to CSV for ALL tickers (after chart generation for passing stocks)
+                    market = get_ticker_market(ticker)
+                    csv_file = self.csv_files.get(market, self.csv_files['US'])
+                    append_to_csv(csv_file, ticker, currentPrice if currentPrice else 0, 
+                                 supportPrice, pressurePrice, 
+                                 isGoodPivot, isDeepCor, isDemandDry, isSwingEntry, figName)
                 finally:
                     # stop heartbeat and log per-ticker total elapsed
                     heartbeat.set()

@@ -229,12 +229,12 @@ logger.info("yfinance successfully loaded.")
 
 #define some constants
 class algoParas:   
-    PIVOT_PRICE_PERC = 0.2
+    PIVOT_PRICE_PERC = 0.15  # Minervini: 15% max correction for valid pivots
     VOLUME_DROP_THRESHOLD_HIGH = 0.8
     VOLUME_DROP_THRESHOLD_LOW = 0.4
     REGRESSION_DAYS = 100
     PEAK_VOL_RATIO = 1.3
-    PRICE_POSITION_LOW = 0.66
+    PRICE_POSITION_LOW = 0.75  # Minervini: price within top 25% of 52-week high
     VOLUME_THRESHOLD = 100000
     
     
@@ -804,19 +804,56 @@ class cookFinancials:
             return False, {}
     
     def get_30day_trend_ma200(self):
-        ###no need to look at everyday, just check last, mid, current
+        """Check if 200 SMA is trending up over the last 30 days (Minervini criteria).
+        Returns 1 if trending up, -1 otherwise.
+        """
         current = self.get_ma_200((dt.date.today()))
-        #print(dt.date.today())
-        #print(current)
+        if current == -1:
+            return -1
         mid = self.get_ma_200((dt.date.today()-dt.timedelta(days=15)))
-        #print(dt.date.today()-dt.timedelta(days=15))
-        #print(mid)
+        if mid == -1:
+            return -1
         last = self.get_ma_200((dt.date.today()-dt.timedelta(days=30)))
-        #print(dt.date.today()-dt.timedelta(days=30))
-        #print(last)
-        if current - mid > 0 and mid -last > 0:
+        if last == -1:
+            return -1
+        # All three points must show uptrend
+        if current > mid and mid > last:
             return 1
         return -1
+    def check_ma_alignment(self):
+        """Check if moving averages are aligned per Minervini's Trend Template.
+        Required: 150 SMA > 200 SMA (price above both)
+        Preferred: 50 SMA > 150 SMA > 200 SMA
+        Returns: (meets_required, meets_preferred)
+        """
+        try:
+            date = dt.date.today()
+            
+            # Get all moving averages
+            ma_50 = self.get_ma_50(date)
+            ma_150 = self.get_ma_150(date)
+            ma_200 = self.get_ma_200(date)
+            
+            if ma_150 == -1 or ma_200 == -1:
+                return False, False
+            
+            # Required: 150 > 200
+            meets_required = ma_150 > ma_200
+            
+            # Preferred: 50 > 150 > 200
+            meets_preferred = False
+            if ma_50 != -1:
+                meets_preferred = ma_50 > ma_150 and ma_150 > ma_200
+            
+            logger.info("MA alignment for %s: 50=%.2f, 150=%.2f, 200=%.2f, required=%s, preferred=%s",
+                       self.ticker, ma_50 if ma_50 != -1 else 0, ma_150, ma_200, meets_required, meets_preferred)
+            
+            return meets_required, meets_preferred
+            
+        except Exception:
+            logger.exception("Error checking MA alignment for %s", self.ticker)
+            return False, False
+    
     def get_30day_trend(self):
         if not(self.priceData):
             date = dt.date.today()
@@ -834,6 +871,13 @@ class cookFinancials:
         return flag
     
     def mv_strategy(self):
+        """Minervini's Trend Template criteria:
+        - Price > 150 SMA and 200 SMA
+        - Price > 50 SMA (preferred)
+        - 150 SMA > 200 SMA (required)
+        - 50 SMA > 150 SMA > 200 SMA (preferred)
+        - 200 SMA trending up for at least 1 month
+        """
         if not(self.priceData):
             date = dt.date.today()
             start_date = date - dt.timedelta(days=365)
@@ -843,17 +887,45 @@ class cookFinancials:
         if not self.current_stickerPrice:
             self.current_stickerPrice = self.get_current_price()
         currentPrice = self.current_stickerPrice
-        price50 = self.get_ma_50(dt.date.today())
-        price150 = self.get_ma_150(dt.date.today())
-        price200 = self.get_ma_200(dt.date.today())
-        #print(currentPrice, price50, price150, price200, self.get_30day_trend_ma200())
-        # Check if currentPrice is None or price200 is invalid before comparison
-        if currentPrice is None or price200 == -1:
-            logger.warning("mv_strategy: Invalid data for %s (currentPrice=%s, price200=%s)", self.ticker, currentPrice, price200)
+        
+        if currentPrice is None:
+            logger.warning("mv_strategy: No current price for %s", self.ticker)
             return -1
-        if currentPrice > price200 and self.get_30day_trend() == 1:
-            return 1
-        return -1  
+        
+        date = dt.date.today()
+        price50 = self.get_ma_50(date)
+        price150 = self.get_ma_150(date)
+        price200 = self.get_ma_200(date)
+        
+        # Check for invalid data
+        if price150 == -1 or price200 == -1:
+            logger.warning("mv_strategy: Invalid MA data for %s", self.ticker)
+            return -1
+        
+        # Minervini Criteria:
+        # 1. Price above 150 and 200 SMA
+        if not (currentPrice > price150 and currentPrice > price200):
+            logger.info("mv_strategy %s: Price not above both 150 & 200 SMA", self.ticker)
+            return -1
+        
+        # 2. Check MA alignment (150 > 200 required)
+        meets_required, meets_preferred = self.check_ma_alignment()
+        if not meets_required:
+            logger.info("mv_strategy %s: 150 SMA not above 200 SMA", self.ticker)
+            return -1
+        
+        # 3. 200 SMA trending up for at least 1 month
+        if self.get_30day_trend_ma200() != 1:
+            logger.info("mv_strategy %s: 200 SMA not trending up", self.ticker)
+            return -1
+        
+        # 4. Price above 50 SMA (preferred, not required)
+        if price50 != -1 and currentPrice > price50:
+            logger.info("mv_strategy %s: All Minervini criteria met (including 50 SMA)", self.ticker)
+        else:
+            logger.info("mv_strategy %s: Core Minervini criteria met", self.ticker)
+        
+        return 1  
         
     def get_vol(self, checkDays, avrgDays):
         date = dt.date.today()
@@ -980,9 +1052,13 @@ class cookFinancials:
         
         range_position = (currentPrice - lowestPrice) / (highestPrice - lowestPrice)
 
-        # Conditions: within the upper third but below 90% of the 1-year high
-        if algoParas.PRICE_POSITION_LOW <= range_position: #if it is larger than 1, it means it break out
-            return 1  # Passes price positioning criteria
+        # Minervini: price within top 25% of 52-week high (range_position >= 0.75)
+        if range_position >= algoParas.PRICE_POSITION_LOW:
+            logger.info("price_strategy %s: Within top 25%% of 52-week high (%.1f%%)", 
+                       self.ticker, range_position * 100)
+            return 1  # Passes Minervini price positioning criteria
+        
+        logger.info("price_strategy %s: Not in top 25%% (at %.1f%%)", self.ticker, range_position * 100)
         return -1  # Fails price strategy
         
     @_log_step()

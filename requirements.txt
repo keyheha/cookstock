@@ -39,6 +39,6 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 websockets==15.0.1
--e git+https://github.com/JECSand/yahoofinancials@2f2cc6c09e55361a72144cb94f9ba193266407ba#egg=yahoofinancials&subdirectory=../../yahoofinancials
+yahoofinancials==1.20
 yfinance==1.0
 zipp==3.23.0

@@ -52,7 +52,7 @@ CUSTOM_TICKERS_UK = [
     'EXPN.L',
     'FERG.L', 'FLTR.L', 'FRES.L',
     'GAW.L', 'GLEN.L', 'GSK.L',
-    'HIK.L', 'HL.L', 'HLMA.L', 'HSBA.L', 'HWDN.L',
+    'HIK.L', 'HL.L', 'HLMA.L', 'HSBA.L', 'HWDN.L', 'HTG.L',
     'IAG.L', 'ICG.L', 'IHG.L', 'IMB.L', 'IMI.L', 'INF.L', 'III.L', 'ITRK.L',
     'JD.L', 'JET.L', 'JMAT.L',
     'KGF.L',

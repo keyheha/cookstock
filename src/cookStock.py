@@ -1375,8 +1375,17 @@ class batch_process:
             'UK': os.path.join(self.resultsPath, '__result_UK.csv'),
             'HK': os.path.join(self.resultsPath, '__result_HK.csv')
         }
+        # Setup market-specific image folders
+        self.image_folders = {
+            'US': os.path.join(self.resultsPath, 'charts_US'),
+            'UK': os.path.join(self.resultsPath, 'charts_UK'),
+            'HK': os.path.join(self.resultsPath, 'charts_HK')
+        }
         for market, csv_file in self.csv_files.items():
             setup_csv_file(csv_file)
+        for market, img_folder in self.image_folders.items():
+            os.makedirs(img_folder, exist_ok=True)
+            logger.info("Created image folder: %s", img_folder)
         logger.info("Initialized batch_process for %d tickers; results -> %s, csv -> %s", len(self.tickers), self.result_file, list(self.csv_files.values())) 
             
     def batch_strategy(self):
@@ -1521,115 +1530,119 @@ class batch_process:
                     # Initialize figName
                     figName = ''
                     
-                    # Now check combined strategy for detailed analysis and charts
-                    flag = x.combined_best_strategy()
-                    logger.info("combined_best_strategy for %s finished in %.2fs", ticker, time.time()-t0)
-                    if flag == True:
-                        logger.info("%s passes combined strategy", ticker)
-                        superStock.append(ticker)
-                        t1 = time.time()
-                        sp = x.get_price(date_from, 100)
-                        logger.info("get_price for %s finished in %.2fs", ticker, time.time()-t1)
-                        tmpLen = len(sp)
-                        date = []
-                        price = []
-                        volume = []
-                        for i in range(tmpLen):
-                            date.append(sp[i]['formatted_date'])
-                            price.append(sp[i]['close'])
-                            volume.append(sp[i]['volume'])
-                        
-                        # create figure and axis objects with subplots()
-                        fig,ax = plt.subplots(2)
-                        fig.suptitle(x.ticker)
-                        # make a plot
-                        ax[0].plot(date, price, color="blue", marker="o")
-                        # set x-axis label
-                        ax[0].set_xlabel("date",fontsize=14)
-                        # set y-axis label
-                        ax[0].set_ylabel("stock price",color="blue",fontsize=14)
-                        
-                        # twin object for two different y-axis on the sample plot
-                        # make a plot with different y-axis using second axis object
-                        ax[1].bar(date, np.asarray(volume)/10**6 ,color="green")
-                        ax[1].set_ylabel("volume (m)",color="green",fontsize=14)
-                        #ax[1].set_ylim([0, 100])
-                        
-                        # Set x-ticks to display every 10th date and include the last date
-                        xticks = np.arange(0, len(date), 10).tolist()
-                        if len(date) - 1 not in xticks:  # Check if the last date is already included
-                            xticks.append(len(date) - 1)  # Add the last date index to x-ticks
+                    # Create charts for all tickers (moved outside combined_best_strategy check)
+                    t1 = time.time()
+                    sp = x.get_price(date_from, 100)
+                    logger.info("get_price for %s finished in %.2fs", ticker, time.time()-t1)
+                    tmpLen = len(sp)
+                    date = []
+                    price = []
+                    volume = []
+                    for i in range(tmpLen):
+                        date.append(sp[i]['formatted_date'])
+                        price.append(sp[i]['close'])
+                        volume.append(sp[i]['volume'])
+                    
+                    # create figure and axis objects with subplots()
+                    fig,ax = plt.subplots(2)
+                    fig.suptitle(x.ticker)
+                    # make a plot
+                    ax[0].plot(date, price, color="blue", marker="o")
+                    # set x-axis label
+                    ax[0].set_xlabel("date",fontsize=14)
+                    # set y-axis label
+                    ax[0].set_ylabel("stock price",color="blue",fontsize=14)
+                    
+                    # twin object for two different y-axis on the sample plot
+                    # make a plot with different y-axis using second axis object
+                    ax[1].bar(date, np.asarray(volume)/10**6 ,color="green")
+                    ax[1].set_ylabel("volume (m)",color="green",fontsize=14)
+                    
+                    # Set x-ticks to display every 10th date and include the last date
+                    xticks = np.arange(0, len(date), 10).tolist()
+                    if len(date) - 1 not in xticks:  # Check if the last date is already included
+                        xticks.append(len(date) - 1)  # Add the last date index to x-ticks
 
-                        ax[0].set_xticks(xticks)
-                        ax[1].set_xticks(xticks)
+                    ax[0].set_xticks(xticks)
+                    ax[1].set_xticks(xticks)
 
-                        # Format date labels for readability
-                        fig.autofmt_xdate(rotation=45)
+                    # Format date labels for readability
+                    fig.autofmt_xdate(rotation=45)
+                    
+                    logger.info("Highest in 5 days for %s: %s", ticker, x.get_highest_in5days(date_from))
+                    
+                    # Create ticker data for JSON
+                    ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
+                                'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry), \
+                                'swing_trade_entry': str(isSwingEntry), 'ema_8': str(swingDetails.get('ema_8', 'N/A')), 'sma_200': str(swingDetails.get('sma_200', 'N/A'))}}
+                    
+                    # Plot VCP patterns if found
+                    if counter > 0:
+                        logger.info("Found %d VCP pattern(s) for %s", counter, ticker)
+                        for i in range(counter):
+                            ax[0].plot([record[i][0], record[i][2]], [record[i][1], record[i][3]], 'r')
                         
-                        logger.info("Highest in 5 days for %s: %s", ticker, x.get_highest_in5days(date_from))
-                        
-                        # VCP patterns already analyzed above, just plot them
-                        ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
-                                    'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry), \
-                                    'swing_trade_entry': str(isSwingEntry), 'ema_8': str(swingDetails.get('ema_8', 'N/A')), 'sma_200': str(swingDetails.get('sma_200', 'N/A'))}}
-                        
-                        # Plot VCP patterns if found
-                        if counter > 0:
-                            logger.info("Found %d VCP pattern(s) for %s", counter, ticker)
-                            for i in range(counter):
-                                ax[0].plot([record[i][0], record[i][2]], [record[i][1], record[i][3]], 'r')
+                        # Plot volume trend lines if we have the data
+                        if volume_ls:
+                            for ind, item in enumerate(date):
+                                if item == startDate:
+                                    logger.info("start index for demand dry for %s: %d", ticker, ind)
+                                    break
                             
-                            # Plot volume trend lines if we have the data
-                            if volume_ls:
+                            x_axis = []
+                            for i in range(len(volume_ls)):
+                                x_axis.append(ind+i)
+                            x_axis = np.array(x_axis)
+                            
+                            y = slope*x_axis-slope*ind + volume_ls[0]
+                            ax[1].plot(np.asarray(date)[x_axis], y/10**6, color="red",linewidth=4)
+                            
+                            if volume_re:
                                 for ind, item in enumerate(date):
-                                    if item == startDate:
-                                        logger.info("start index for demand dry for %s: %d", ticker, ind)
+                                    if item == recentStart:
+                                        logger.info("recent start index for %s: %d", ticker, ind)
                                         break
                                 
                                 x_axis = []
-                                for i in range(len(volume_ls)):
+                                for i in range(len(volume_re)):
                                     x_axis.append(ind+i)
                                 x_axis = np.array(x_axis)
-                                
-                                y = slope*x_axis-slope*ind + volume_ls[0]
-                                ax[1].plot(np.asarray(date)[x_axis], y/10**6, color="red",linewidth=4)
-                                
-                                if volume_re:
-                                    for ind, item in enumerate(date):
-                                        if item == recentStart:
-                                            logger.info("recent start index for %s: %d", ticker, ind)
-                                            break
-                                    
-                                    x_axis = []
-                                    for i in range(len(volume_re)):
-                                        x_axis.append(ind+i)
-                                    x_axis = np.array(x_axis)
-                                    yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
-                                    ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
-                        
-                        fig.show()
-                        
-                        figName = os.path.join(self.resultsPath, ticker+'.jpg')
-                        #only save the ones passing all criterion
-                        if isGoodPivot and not(isDeepCor) and isDemandDry:
-                            fig.savefig(figName,
-                                        format='jpeg',
-                                        dpi=100,
-                                        bbox_inches='tight')
-                            logger.info("Saved figure %s", figName)
-                            #add link to the json file
-                            ticker_data[ticker]['fig'] = figName
-                        else:
-                            figName = ''  # No chart saved if doesn't meet criteria
-                            
-                        append_to_json(self.result_file, ticker_data)
+                                yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
+                                ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
+                    
+                    fig.show()
+                    
+                    # Determine market and use market-specific image folder
+                    market = get_ticker_market(ticker)
+                    img_folder = self.image_folders.get(market, self.image_folders['US'])
+                    figName = os.path.join(img_folder, ticker+'.jpg')
+                    # Save chart for all stocks with VCP patterns OR meeting buy criteria
+                    if counter > 0 or (isGoodPivot and not(isDeepCor) and isDemandDry):
+                        fig.savefig(figName,
+                                    format='jpeg',
+                                    dpi=100,
+                                    bbox_inches='tight')
+                        logger.info("Saved figure %s", figName)
+                        ticker_data[ticker]['fig'] = figName
+                    else:
+                        figName = ''  # No chart saved if no VCP and doesn't meet criteria
+                    
+                    # Add to JSON for all tickers
+                    append_to_json(self.result_file, ticker_data)
+                    
+                    # Check combined strategy for superStock tracking
+                    flag = x.combined_best_strategy()
+                    logger.info("combined_best_strategy for %s: %s (finished in %.2fs)", ticker, flag, time.time()-t0)
+                    if flag == True:
+                        logger.info("%s passes combined strategy", ticker)
+                        superStock.append(ticker)
                     
                     # Write to CSV for ALL tickers (after chart generation for passing stocks)
                     market = get_ticker_market(ticker)
                     csv_file = self.csv_files.get(market, self.csv_files['US'])
                     append_to_csv(csv_file, ticker, currentPrice if currentPrice else 0, 
                                  supportPrice, pressurePrice, 
-                                 isGoodPivot, isDeepCor, isDemandDry, isSwingEntry, figName)
+                                 isGoodPivot, isDeepCor, isDemandDry, isSwingEntry)
                 finally:
                     # stop heartbeat and log per-ticker total elapsed
                     heartbeat.set()
@@ -1734,11 +1747,11 @@ def setup_csv_file(filepath):
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Swing Trade Entry', 'Current Price', 'Support Price', 'Pressure Price', 
-                        'Good Pivot', 'Deep Correction', 'Demand Dry', 'Chart'])
+                        'Good Pivot', 'Deep Correction', 'Demand Dry'])
     logger.info("Created CSV file: %s", filepath)
 
 def append_to_csv(filepath, ticker, current_price, support_price, pressure_price,
-                 is_good_pivot, is_deep_correction, is_demand_dry, is_swing_trade_entry, chart_path):
+                 is_good_pivot, is_deep_correction, is_demand_dry, is_swing_trade_entry):
     """Append a row to the CSV file."""
     import csv
     # Calculate buy signal: True if all conditions met
@@ -1758,7 +1771,7 @@ def append_to_csv(filepath, ticker, current_price, support_price, pressure_price
     with open(filepath, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([ticker, buy_signal, sell_signal, swing_entry, current_price, support_price, pressure_price,
-                        is_good_pivot, is_deep_correction, is_demand_dry, chart_path])
+                        is_good_pivot, is_deep_correction, is_demand_dry])
 
 def get_ticker_market(ticker):
     """Determine the market from ticker suffix.

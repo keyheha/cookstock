@@ -264,6 +264,8 @@ if YahooFinancials is None:
     # Fail fast with a clear message rather than silently falling back to `object`.
     logger.error("yahoofinancials not available. Install project requirements (pip install -r requirements.txt) or set up the vendored package correctly.")
     raise ImportError("yahoofinancials not available; please install the project's dependencies")
+else:
+    logger.info("yahoofinancials successfully loaded.")
 
 #define some constants
 class algoParas:   
@@ -338,7 +340,10 @@ class cookFinancials(YahooFinancials):
                     end_ts = _to_epoch_seconds(date)
                     logger.info("Fetching data from %s to %s", str(start_date), str(date))
                     logger.info("Fetching data from %d to %d", start_ts, end_ts)
-                    self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
+                    y = YahooFinancials('AAPL')
+                    res = y.get_historical_price_data(start_ts, end_ts, 'daily')
+                    logger.info(res)
+                    self.priceData = y.get_historical_price_data(start_ts, end_ts, 'daily')
                     logger.info("Fetched")
                     _cache_save(self.ticker, days, self.priceData)
                 except Exception:

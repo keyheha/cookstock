@@ -6,3 +6,4 @@ crontab.log
 src/__pycache__
 test/__pycache__
 venv
+cache

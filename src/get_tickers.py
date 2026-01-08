@@ -29,7 +29,7 @@ CUSTOM_TICKERS_US = [
     'LEU', 'LITE', 'LLY',
     'MA', 'MCD', 'MDB', 'META', 'MNDY', 'MRK', 'MRNA', 'MS', 'MSFT', 'MU', 'MMM',
     'NBIS', 'NEE', 'NET', 'NFLX', 'NKE', 'NOW', 'NTAP', 'NUAI', 'NVDA',
-    'O', 'OKLO', 'OKTA', 'ORCL',
+    'O', 'OKLO', 'OKTA', 'ONDS', 'ORCL',
     'PEP', 'PG', 'PHM', 'PINS', 'PLTR', 'PM', 'PSTG', 'PSX', 'PYPL',
     'QCOM',
     'RBLX', 'RKLB', 'ROKU', 'RTX',

@@ -111,20 +111,21 @@ y_uk = batch_process(uk_tickers, 'CustomUK')
 y_uk.batch_pipeline_full()  # Uncomment to run
 
 # ============================================================================
-# EXAMPLE 3: Using both US and UK tickers
+# EXAMPLE 3: Using ALL markets (US + UK + HK)
 # ============================================================================
 print("\n" + "="*70)
-print("EXAMPLE 3: Using Both US and UK Tickers")
+print("EXAMPLE 3: Using ALL Markets (US + UK + HK)")
 print("="*70)
 
-# Get both US and UK tickers
-both_tickers = get_custom_tickers('BOTH')
-print(f"Processing {len(both_tickers)} stocks (US + UK)")
-print(f"First 5 tickers: {both_tickers[:5]}")
+# Get all tickers from US, UK, and HK markets
+all_tickers = get_custom_tickers('ALL')
+print(f"Processing {len(all_tickers)} stocks (US + UK + HK)")
+print(f"First 5 tickers: {all_tickers[:5]}")
+print(f"Last 5 tickers: {all_tickers[-5:]}")
 
-# Create batch processor with both US and UK tickers
-y_both = batch_process(both_tickers, 'CustomUS_UK')
-y_both.batch_pipeline_full()  # Uncomment to run
+# Create batch processor with all market tickers
+y_all = batch_process(all_tickers, 'CustomALL')
+y_all.batch_pipeline_full()  # Uncomment to run
 
 # ============================================================================
 # EXAMPLE 4: Using market parameter directly in batch_process

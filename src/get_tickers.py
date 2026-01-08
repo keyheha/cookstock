@@ -37,6 +37,11 @@ CUSTOM_TICKERS_UK = [
     'INF.L', 'SMDS.L', 'DCC.L', 'ABDN.L', 'OCDO.L'
 ]
 
+CUSTOM_TICKERS_HK = [
+    '9988.HK',  # Alibaba
+    '9626.HK'   # Bilibili
+]
+
 # headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df
 # headers = {
 #     'authority': 'old.nasdaq.com',
@@ -122,7 +127,7 @@ def get_custom_tickers(market='US'):
     Get custom ticker list by market.
     
     Args:
-        market (str): Market to get tickers for. Options: 'US', 'UK', 'BOTH'
+        market (str): Market to get tickers for. Options: 'US', 'UK', 'HK', 'BOTH' (US+UK), 'ALL' (US+UK+HK)
     
     Returns:
         list: List of ticker symbols
@@ -132,10 +137,14 @@ def get_custom_tickers(market='US'):
         return CUSTOM_TICKERS_US.copy()
     elif market == 'UK':
         return CUSTOM_TICKERS_UK.copy()
+    elif market == 'HK':
+        return CUSTOM_TICKERS_HK.copy()
     elif market == 'BOTH':
         return CUSTOM_TICKERS_US.copy() + CUSTOM_TICKERS_UK.copy()
+    elif market == 'ALL':
+        return CUSTOM_TICKERS_US.copy() + CUSTOM_TICKERS_UK.copy() + CUSTOM_TICKERS_HK.copy()
     else:
-        raise ValueError(f"Invalid market '{market}'. Options: 'US', 'UK', 'BOTH'")
+        raise ValueError(f"Invalid market '{market}'. Options: 'US', 'UK', 'HK', 'BOTH', 'ALL'")
 
 
 def get_tickers(NYSE=True, NASDAQ=True, AMEX=True):

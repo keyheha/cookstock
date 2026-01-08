@@ -1385,6 +1385,11 @@ class batch_process:
                 logger.exception("Error processing ticker %s", ticker)
                 pass
         logger.info("batch_pipeline_full finished; candidates=%d, elapsed=%.2fs", len(superStock), time.time()-start_time)
+        
+        # Sort all CSV files by Buy Signal
+        for market, csv_file in self.csv_files.items():
+            sort_csv_by_buy_signal(csv_file)
+        logger.info("CSV files sorted by Buy Signal")
 
             
     def batch_financial(self):       
@@ -1503,3 +1508,31 @@ def get_ticker_market(ticker):
         return 'HK'
     else:  # Default to US (no suffix or other suffixes)
         return 'US'
+
+def sort_csv_by_buy_signal(filepath):
+    """Sort CSV file by Buy Signal column (YES first, then NO)."""
+    import csv
+    try:
+        # Read all rows
+        with open(filepath, 'r', newline='') as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            rows = list(reader)
+        
+        # Skip if no data rows
+        if not rows:
+            return
+        
+        # Sort by Buy Signal column (index 1): YES before NO
+        # Using reverse=True because 'YES' > 'NO' alphabetically
+        rows.sort(key=lambda row: row[1], reverse=True)
+        
+        # Write back sorted data
+        with open(filepath, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(rows)
+        
+        logger.info("Sorted CSV file: %s", filepath)
+    except Exception:
+        logger.exception("Failed to sort CSV file: %s", filepath)

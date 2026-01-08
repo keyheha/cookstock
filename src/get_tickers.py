@@ -21,7 +21,7 @@ CUSTOM_TICKERS_US = [
     'DDOG', 'DELL', 'DIS', 'DOCN', 'DOCU', 'DUOL', 'DUK',
     'EA', 'EBAY', 'EOSE', 'EQR', 'ETSY', 'EXPE',
     'FDX', 'FLEX', 'FLNC', 'FN', 'FRSH',
-    'GEV', 'GILD', 'GLXY', 'GOOG', 'GOOGL', 'GTLB',
+    'GEV', 'GILD', 'GLXY', 'GOOGL', 'GTLB',
     'HD', 'HON', 'HOOD', 'HUT',
     'IBM', 'INTC', 'INTU', 'IREN',
     'JNJ', 'JPM',

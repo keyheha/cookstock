@@ -698,6 +698,111 @@ class cookFinancials:
         date_from = (date - dt.timedelta(days=150))
         date_to = (date)
         return self.get_ma(date_from, date_to)
+    
+    def get_ema(self, date, period):
+        """Calculate Exponential Moving Average (EMA) for a given period.
+        
+        Args:
+            date: The end date for EMA calculation
+            period: The number of periods for EMA (e.g., 8, 20, 50)
+        
+        Returns:
+            EMA value or -1 if insufficient data
+        """
+        if not(self.priceData):
+            date_now = dt.date.today()
+            start_date = date_now - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date_now)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
+        
+        # Get price data up to the specified date
+        date_from = date - dt.timedelta(days=period * 3)  # Get extra data for EMA calculation
+        priceDataStruct = self.priceData[self.ticker]['prices']
+        selectedPriceDataStruct = self.get_price_from_buffer_start_end(priceDataStruct, date_from, date)
+        
+        if not selectedPriceDataStruct or len(selectedPriceDataStruct) < period:
+            logger.warning("get_ema: Insufficient data for %s (period=%d)", self.ticker, period)
+            return -1
+        
+        # Extract close prices
+        close_prices = []
+        for item in selectedPriceDataStruct:
+            if item['close']:
+                close_prices.append(item['close'])
+            elif close_prices:  # Use last valid price if current is missing
+                close_prices.append(close_prices[-1])
+        
+        if len(close_prices) < period:
+            return -1
+        
+        # Calculate EMA using pandas
+        prices_series = pd.Series(close_prices)
+        ema = prices_series.ewm(span=period, adjust=False).mean()
+        
+        return ema.iloc[-1] if len(ema) > 0 else -1
+    
+    def get_ema_8(self, date):
+        """Get 8-period EMA."""
+        return self.get_ema(date, 8)
+    
+    def is_swing_trade_entry(self):
+        """Check for swing trade entry signal.
+        
+        Criteria:
+        - Current price is above 8 EMA (Exponential Moving Average)
+        - Current price is above 200 SMA (Simple Moving Average)
+        
+        Returns:
+            Tuple (bool, dict): (True/False, details dict with prices and EMAs)
+        """
+        try:
+            date = dt.date.today()
+            
+            # Get current price
+            if not self.current_stickerPrice:
+                self.current_stickerPrice = self.get_current_price()
+            current_price = self.current_stickerPrice
+            
+            if current_price is None:
+                logger.warning("is_swing_trade_entry: No current price for %s", self.ticker)
+                return False, {}
+            
+            # Get 8 EMA
+            ema_8 = self.get_ema_8(date)
+            if ema_8 == -1:
+                logger.warning("is_swing_trade_entry: Could not calculate 8 EMA for %s", self.ticker)
+                return False, {}
+            
+            # Get 200 SMA
+            sma_200 = self.get_ma_200(date)
+            if sma_200 == -1:
+                logger.warning("is_swing_trade_entry: Could not calculate 200 SMA for %s", self.ticker)
+                return False, {}
+            
+            # Check conditions: price > 8 EMA AND price > 200 SMA
+            is_above_ema8 = current_price > ema_8
+            is_above_sma200 = current_price > sma_200
+            is_entry_signal = is_above_ema8 and is_above_sma200
+            
+            details = {
+                'current_price': current_price,
+                'ema_8': ema_8,
+                'sma_200': sma_200,
+                'above_ema8': is_above_ema8,
+                'above_sma200': is_above_sma200,
+                'swing_entry_signal': is_entry_signal
+            }
+            
+            logger.info("Swing trade entry check for %s: signal=%s (price=%.2f, ema8=%.2f, sma200=%.2f)",
+                       self.ticker, is_entry_signal, current_price, ema_8, sma_200)
+            
+            return is_entry_signal, details
+            
+        except Exception as e:
+            logger.exception("Error in is_swing_trade_entry for %s: %s", self.ticker, e)
+            return False, {}
+    
     def get_30day_trend_ma200(self):
         ###no need to look at everyday, just check last, mid, current
         current = self.get_ma_200((dt.date.today()))
@@ -1377,6 +1482,49 @@ class batch_process:
                         x = cookFinancials(ticker, priceData=price_map, fetch_days=HISTORICAL_DAYS_DEFAULT)
                     else:
                         x = cookFinancials(ticker)
+                    
+                    # Get current price first for CSV output (needed for all tickers)
+                    if not x.current_stickerPrice:
+                        x.current_stickerPrice = x.get_current_price()
+                    currentPrice = x.current_stickerPrice
+                    
+                    # Check for swing trade entry signal (for all tickers)
+                    isSwingEntry, swingDetails = x.is_swing_trade_entry()
+                    logger.info("swing_trade_entry=%s for %s", isSwingEntry, ticker)
+                    
+                    # Try to get basic pivot data (for all tickers)
+                    try:
+                        # Run VCP analysis to get pivot data
+                        counter, record = x.find_volatility_contraction_pattern(date_from)
+                        footprint = x.get_footPrint()
+                        isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
+                        
+                        if currentPrice is None or supportPrice is None or pressurePrice is None:
+                            # Use fallback values if pivot analysis fails
+                            supportPrice = currentPrice if currentPrice else 0
+                            pressurePrice = currentPrice if currentPrice else 0
+                            isGoodPivot = False
+                        
+                        isDeepCor = x.is_correction_deep()
+                        isDemandDry, startDate, endDate, volume_ls, slope, interY, recentStart, recentEnd, volume_re, slopeRecet, interYRecent = x.is_demand_dry()
+                    except Exception:
+                        logger.exception("Error in analysis for %s, using defaults", ticker)
+                        supportPrice = currentPrice if currentPrice else 0
+                        pressurePrice = currentPrice if currentPrice else 0
+                        isGoodPivot = False
+                        isDeepCor = False
+                        isDemandDry = False
+                        counter = 0
+                    
+                    # Write to CSV for ALL tickers
+                    market = get_ticker_market(ticker)
+                    csv_file = self.csv_files.get(market, self.csv_files['US'])
+                    figName = ''
+                    append_to_csv(csv_file, ticker, currentPrice if currentPrice else 0, 
+                                 supportPrice, pressurePrice, 
+                                 isGoodPivot, isDeepCor, isDemandDry, isSwingEntry, figName)
+                    
+                    # Now check combined strategy for detailed analysis and charts
                     flag = x.combined_best_strategy()
                     logger.info("combined_best_strategy for %s finished in %.2fs", ticker, time.time()-t0)
                     if flag == True:
@@ -1423,85 +1571,59 @@ class batch_process:
                         
                         logger.info("Highest in 5 days for %s: %s", ticker, x.get_highest_in5days(date_from))
                         
-                        counter, record = x.find_volatility_contraction_pattern(date_from)
+                        # VCP patterns already analyzed above, just plot them
+                        ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
+                                    'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry), \
+                                    'swing_trade_entry': str(isSwingEntry), 'ema_8': str(swingDetails.get('ema_8', 'N/A')), 'sma_200': str(swingDetails.get('sma_200', 'N/A'))}}
                         
+                        # Plot VCP patterns if found
                         if counter > 0:
                             logger.info("Found %d VCP pattern(s) for %s", counter, ticker)
                             for i in range(counter):
                                 ax[0].plot([record[i][0], record[i][2]], [record[i][1], record[i][3]], 'r')
                             
-                            # ax[0].set_xticks(np.arange(0, len(date)+1, 12))
-                            # ax[1].set_xticks(np.arange(0, len(date)+1, 12))
-                            
-                            footprint = x.get_footPrint()
-                            logger.info("footprint for %s: %s", ticker, footprint)
-                            isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
-                            
-                            # Check if we got valid data from is_pivot_good
-                            if currentPrice is None or supportPrice is None or pressurePrice is None:
-                                logger.warning("Skipping %s due to missing pivot data", ticker)
-                                continue
-                            
-                            logger.info("is_good_pivot=%s for %s", isGoodPivot, ticker)
-                            isDeepCor = x.is_correction_deep()
-                            logger.info("is_deep_correction=%s for %s", isDeepCor, ticker)
-                            isDemandDry, startDate, endDate, volume_ls, slope, interY, recentStart, recentEnd, volume_re, slopeRecet, interYRecent = x.is_demand_dry()
-                            logger.info("is_demand_dry=%s for %s", isDemandDry, ticker)
-        
-                            ticker_data = {ticker:{'current price':str(currentPrice), 'support price':str(supportPrice), 'pressure price':str(pressurePrice), \
-                                        'is_good_pivot':str(isGoodPivot), 'is_deep_correction':str(isDeepCor), 'is_demand_dry': str(isDemandDry)}}    
-
-                            for ind, item in enumerate(date):
-                                if item == startDate:
-                                    logger.info("start index for demand dry for %s: %d", ticker, ind)
-                                    break
-                            
-                            if not volume_ls:
-                                logger.warning("No volume_ls data for %s, skipping plot", ticker)
-                                continue
-                            
-                            x_axis = []
-                            for i in range(len(volume_ls)):
-                                x_axis.append(ind+i)
-                            x_axis = np.array(x_axis)
-                            
-                            y = slope*x_axis-slope*ind + volume_ls[0]
-                            ax[1].plot(np.asarray(date)[x_axis], y/10**6, color="red",linewidth=4)
-                            
-                            for ind, item in enumerate(date):
-                                if item == recentStart:
-                                    logger.info("recent start index for %s: %d", ticker, ind)
-                                    break
-                            
-                            if not volume_re:
-                                logger.warning("No volume_re data for %s, skipping recent plot", ticker)
-                            else:
+                            # Plot volume trend lines if we have the data
+                            if volume_ls:
+                                for ind, item in enumerate(date):
+                                    if item == startDate:
+                                        logger.info("start index for demand dry for %s: %d", ticker, ind)
+                                        break
+                                
                                 x_axis = []
-                                for i in range(len(volume_re)):
+                                for i in range(len(volume_ls)):
                                     x_axis.append(ind+i)
                                 x_axis = np.array(x_axis)
-                                yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
-                                ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
-                            fig.show()
-                            
-                            figName = os.path.join(self.resultsPath, ticker+'.jpg')
-                            #only save the ones passing all criterion
-                            if isGoodPivot and not(isDeepCor) and isDemandDry:
-                                fig.savefig(figName,
-                                            format='jpeg',
-                                            dpi=100,
-                                            bbox_inches='tight')
-                                logger.info("Saved figure %s", figName)
-                                #add link to the json file
-                                ticker_data[ticker]['fig'] = figName
                                 
-                            append_to_json(self.result_file, ticker_data)
-                            # Determine market from ticker suffix and write to appropriate CSV
-                            market = get_ticker_market(ticker)
-                            csv_file = self.csv_files.get(market, self.csv_files['US'])
-                            append_to_csv(csv_file, ticker, currentPrice, supportPrice, pressurePrice, 
-                                         isGoodPivot, isDeepCor, isDemandDry, 
-                                         figName if (isGoodPivot and not(isDeepCor) and isDemandDry) else '')
+                                y = slope*x_axis-slope*ind + volume_ls[0]
+                                ax[1].plot(np.asarray(date)[x_axis], y/10**6, color="red",linewidth=4)
+                                
+                                if volume_re:
+                                    for ind, item in enumerate(date):
+                                        if item == recentStart:
+                                            logger.info("recent start index for %s: %d", ticker, ind)
+                                            break
+                                    
+                                    x_axis = []
+                                    for i in range(len(volume_re)):
+                                        x_axis.append(ind+i)
+                                    x_axis = np.array(x_axis)
+                                    yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
+                                    ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
+                        
+                        fig.show()
+                        
+                        figName = os.path.join(self.resultsPath, ticker+'.jpg')
+                        #only save the ones passing all criterion
+                        if isGoodPivot and not(isDeepCor) and isDemandDry:
+                            fig.savefig(figName,
+                                        format='jpeg',
+                                        dpi=100,
+                                        bbox_inches='tight')
+                            logger.info("Saved figure %s", figName)
+                            #add link to the json file
+                            ticker_data[ticker]['fig'] = figName
+                            
+                        append_to_json(self.result_file, ticker_data)
                 finally:
                     # stop heartbeat and log per-ticker total elapsed
                     heartbeat.set()
@@ -1605,12 +1727,12 @@ def setup_csv_file(filepath):
         os.makedirs(basedir)
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Current Price', 'Support Price', 'Pressure Price', 
+        writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Swing Trade Entry', 'Current Price', 'Support Price', 'Pressure Price', 
                         'Good Pivot', 'Deep Correction', 'Demand Dry', 'Chart'])
     logger.info("Created CSV file: %s", filepath)
 
 def append_to_csv(filepath, ticker, current_price, support_price, pressure_price,
-                 is_good_pivot, is_deep_correction, is_demand_dry, chart_path):
+                 is_good_pivot, is_deep_correction, is_demand_dry, is_swing_trade_entry, chart_path):
     """Append a row to the CSV file."""
     import csv
     # Calculate buy signal: True if all conditions met
@@ -1624,9 +1746,12 @@ def append_to_csv(filepath, ticker, current_price, support_price, pressure_price
                            (not is_good_pivot and current_price < support_price) or
                            (is_deep_correction and not is_demand_dry)) else 'NO'
     
+    # Swing trade entry signal
+    swing_entry = 'YES' if is_swing_trade_entry else 'NO'
+    
     with open(filepath, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow([ticker, buy_signal, sell_signal, current_price, support_price, pressure_price,
+        writer.writerow([ticker, buy_signal, sell_signal, swing_entry, current_price, support_price, pressure_price,
                         is_good_pivot, is_deep_correction, is_demand_dry, chart_path])
 
 def get_ticker_market(ticker):

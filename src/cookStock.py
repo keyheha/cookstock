@@ -733,6 +733,10 @@ class cookFinancials:
         price150 = self.get_ma_150(dt.date.today())
         price200 = self.get_ma_200(dt.date.today())
         #print(currentPrice, price50, price150, price200, self.get_30day_trend_ma200())
+        # Check if currentPrice is None or price200 is invalid before comparison
+        if currentPrice is None or price200 == -1:
+            logger.warning("mv_strategy: Invalid data for %s (currentPrice=%s, price200=%s)", self.ticker, currentPrice, price200)
+            return -1
         if currentPrice > price200 and self.get_30day_trend() == 1:
             return 1
         return -1  

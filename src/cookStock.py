@@ -320,8 +320,11 @@ class cookFinancials:
             self.current_stickerPrice = self.get_current_price()
             if not self.current_stickerPrice:
                 # Fallback to last cached price if live price unavailable
-                self.current_stickerPrice = self.priceData[self.ticker]['prices'][-1]['close']
-                logger.debug("Using cached close price for %s", self.ticker)
+                if self.priceData.get(self.ticker, {}).get('prices'):
+                    self.current_stickerPrice = self.priceData[self.ticker]['prices'][-1]['close']
+                    logger.debug("Using cached close price for %s", self.ticker)
+                else:
+                    self.current_stickerPrice = None
         except Exception:
             logger.debug("Could not set current_stickerPrice for %s", self.ticker)
             self.current_stickerPrice = None
@@ -554,6 +557,8 @@ class cookFinancials:
         for v in range(np.size(bv)-1):
             gr.append((bv[v]-bv[v+1])/abs(bv[v+1]))
         #print(gr)
+        if not gr:
+            return np.size(bv)-1, 0
         return np.size(bv)-1, np.max(gr)
     
     def growthRate(self, cur,init, years):
@@ -567,7 +572,7 @@ class cookFinancials:
         if BV_GR==-1:
             for v in range(np.size(bv)-1):
                 gr.append((bv[v]-bv[v+1])/abs(bv[v+1]))
-            BV_GR = np.mean(gr)
+            BV_GR = np.mean(gr) if gr else -1
         return np.size(bv)-1, BV_GR
     
     def get_suggest_price(self, cEPS, growth, years, rRate, PE, safty):
@@ -652,9 +657,13 @@ class cookFinancials:
         for i in range(len(data[self.ticker]['prices'])):
             #print(data[self.ticker]['prices'][i]['formatted_date'])
             if not(data[self.ticker]['prices'][i]['close']):
-                data[self.ticker]['prices'][i]['close'] = data[self.ticker]['prices'][i-1]['close']
+                if i > 0:
+                    data[self.ticker]['prices'][i]['close'] = data[self.ticker]['prices'][i-1]['close']
+                else:
+                    # Skip first element if no close price
+                    continue
             tmp = tmp + data[self.ticker]['prices'][i]['close']
-        return tmp/(i+1)
+        return tmp/(i+1) if i >= 0 else -1
     
     def get_ma(self, date_from, date_to):
         if not(self.priceData):
@@ -1079,11 +1088,23 @@ class cookFinancials:
         flag = False
         if not(self.m_footPrint):
             self.get_footPrint()
+        
+        # Check if we have valid footprint and VCP records
+        if not self.m_footPrint or not self.m_recordVCP:
+            logger.warning("is_pivot_good: No footprint or VCP records for %s", self.ticker)
+            return False, None, None, None
+        
         #correction within 10% of max price and current price higher then lower boundary
         if not self.current_stickerPrice:
             current = self.get_current_price()
         else:
             current = self.current_stickerPrice
+        
+        # Check if current price is valid
+        if current is None:
+            logger.warning("is_pivot_good: No current price available for %s", self.ticker)
+            return False, None, None, None
+        
         flag = (self.m_footPrint[-1][2] <= algoParas.PIVOT_PRICE_PERC) and (current> self.m_recordVCP[-1][3])
         #report support and pressure
         logger.info("%s current price: %s", self.ticker, current)
@@ -1096,6 +1117,12 @@ class cookFinancials:
         flag = False
         if not(self.m_footPrint):
             self.get_footPrint()
+        
+        # Check if we have valid footprint data after trying to get it
+        if not self.m_footPrint:
+            logger.warning("is_correction_deep: No footprint data for %s", self.ticker)
+            return False
+        
         tmp = np.asarray(self.m_footPrint)
         tmpcorrection = tmp[:,2]
         correction = tmpcorrection.astype(float)
@@ -1106,6 +1133,11 @@ class cookFinancials:
     def is_demand_dry(self):
         if not self.m_footPrint:
             self.get_footPrint()
+        
+        # Check if we have valid footprint data
+        if not self.m_footPrint:
+            logger.warning("is_demand_dry: No footprint data for %s", self.ticker)
+            return False, None, None, [], 0, 0, None, None, [], 0, 0
 
         # Get the date range from the last footprint entry
         startDate = self.m_footPrint[-1][0]
@@ -1130,6 +1162,10 @@ class cookFinancials:
         
         #get past 4 days volume
         recentData = priceDataStruct[-4:]
+        if not recentData or len(recentData) == 0:
+            logger.warning("is_demand_dry: No recent data for %s", self.ticker)
+            return False, startDate, endDate, footprintVolume, slope, intercept, None, None, [], 0, 0
+        
         recentStartDate = recentData[0]['formatted_date']
         recentEndDate = recentData[-1]['formatted_date']
         recentVolume = [item['volume'] for item in recentData]
@@ -1400,6 +1436,12 @@ class batch_process:
                             footprint = x.get_footPrint()
                             logger.info("footprint for %s: %s", ticker, footprint)
                             isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
+                            
+                            # Check if we got valid data from is_pivot_good
+                            if currentPrice is None or supportPrice is None or pressurePrice is None:
+                                logger.warning("Skipping %s due to missing pivot data", ticker)
+                                continue
+                            
                             logger.info("is_good_pivot=%s for %s", isGoodPivot, ticker)
                             isDeepCor = x.is_correction_deep()
                             logger.info("is_deep_correction=%s for %s", isDeepCor, ticker)
@@ -1413,6 +1455,11 @@ class batch_process:
                                 if item == startDate:
                                     logger.info("start index for demand dry for %s: %d", ticker, ind)
                                     break
+                            
+                            if not volume_ls:
+                                logger.warning("No volume_ls data for %s, skipping plot", ticker)
+                                continue
+                            
                             x_axis = []
                             for i in range(len(volume_ls)):
                                 x_axis.append(ind+i)
@@ -1425,12 +1472,16 @@ class batch_process:
                                 if item == recentStart:
                                     logger.info("recent start index for %s: %d", ticker, ind)
                                     break
-                            x_axis = []
-                            for i in range(len(volume_re)):
-                                x_axis.append(ind+i)
-                            x_axis = np.array(x_axis)
-                            yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
-                            ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
+                            
+                            if not volume_re:
+                                logger.warning("No volume_re data for %s, skipping recent plot", ticker)
+                            else:
+                                x_axis = []
+                                for i in range(len(volume_re)):
+                                    x_axis.append(ind+i)
+                                x_axis = np.array(x_axis)
+                                yRecent = slopeRecet*x_axis-slopeRecet*ind + volume_re[0]
+                                ax[1].plot(np.asarray(date)[x_axis], yRecent/10**6, color="red",linewidth=4)
                             fig.show()
                             
                             figName = os.path.join(self.resultsPath, ticker+'.jpg')

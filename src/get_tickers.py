@@ -10,6 +10,33 @@ _SECTORS_LIST = set(['Consumer Non-Durables', 'Capital Goods', 'Health Care',
                      'Consumer Services', 'Public Utilities', 'Miscellaneous',
                      'Consumer Durables', 'Transportation'])
 
+# Custom ticker lists
+CUSTOM_TICKERS_US = [
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
+    'META', 'TSLA', 'BRK.B', 'UNH', 'XOM',
+    'JPM', 'JNJ', 'V', 'PG', 'MA',
+    'HD', 'CVX', 'MRK', 'ABBV', 'KO',
+    'AVGO', 'PEP', 'COST', 'LLY', 'ADBE',
+    'WMT', 'MCD', 'CSCO', 'NFLX', 'ACN',
+    'CRM', 'TMO', 'ABT', 'DIS', 'NKE',
+    'VZ', 'CMCSA', 'INTC', 'AMD', 'QCOM',
+    'TXN', 'UNP', 'RTX', 'HON', 'INTU',
+    'PM', 'NEE', 'SPGI', 'BA', 'IBM'
+]
+
+CUSTOM_TICKERS_UK = [
+    'AZN.L', 'SHEL.L', 'HSBA.L', 'ULVR.L', 'DGE.L',
+    'BATS.L', 'GSK.L', 'BP.L', 'RIO.L', 'NG.L',
+    'LSEG.L', 'REL.L', 'BARC.L', 'LLOY.L', 'VOD.L',
+    'PRU.L', 'CRH.L', 'RKT.L', 'BHP.L', 'AAL.L',
+    'IMB.L', 'III.L', 'CPG.L', 'AV.L', 'FERG.L',
+    'ANTO.L', 'GLEN.L', 'NWG.L', 'LGEN.L', 'EXPN.L',
+    'STAN.L', 'SDR.L', 'BRBY.L', 'BA.L', 'BT-A.L',
+    'SSE.L', 'TSCO.L', 'ENT.L', 'CCH.L', 'WPP.L',
+    'PSN.L', 'JD.L', 'CRDA.L', 'AUTO.L', 'SGE.L',
+    'INF.L', 'SMDS.L', 'DCC.L', 'ABDN.L', 'OCDO.L'
+]
+
 # headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df
 # headers = {
 #     'authority': 'old.nasdaq.com',
@@ -90,6 +117,27 @@ class SectorConstants:
 
 
 # get tickers from chosen exchanges (default all) as a list
+def get_custom_tickers(market='US'):
+    """
+    Get custom ticker list by market.
+    
+    Args:
+        market (str): Market to get tickers for. Options: 'US', 'UK', 'BOTH'
+    
+    Returns:
+        list: List of ticker symbols
+    """
+    market = market.upper()
+    if market == 'US':
+        return CUSTOM_TICKERS_US.copy()
+    elif market == 'UK':
+        return CUSTOM_TICKERS_UK.copy()
+    elif market == 'BOTH':
+        return CUSTOM_TICKERS_US.copy() + CUSTOM_TICKERS_UK.copy()
+    else:
+        raise ValueError(f"Invalid market '{market}'. Options: 'US', 'UK', 'BOTH'")
+
+
 def get_tickers(NYSE=True, NASDAQ=True, AMEX=True):
     tickers_list = []
     if NYSE:

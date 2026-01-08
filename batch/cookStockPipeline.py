@@ -116,8 +116,28 @@ sectorNameStr = '_'.join(sectorName)
 
 # selected = ['DSP']
 
+# ============================================================================
+# OPTION 1: Use sector-filtered tickers (original approach)
+# ============================================================================
 y = batch_process(selected, sectorNameStr)
 y.batch_pipeline_full()
+
+# ============================================================================
+# OPTION 2: Use custom ticker lists by market
+# ============================================================================
+# Uncomment one of the following to use custom ticker lists:
+
+# For US market only:
+# y_us = batch_process(None, 'CustomUS', market='US')
+# y_us.batch_pipeline_full()
+
+# For UK market only:
+# y_uk = batch_process(None, 'CustomUK', market='UK')
+# y_uk.batch_pipeline_full()
+
+# For both US and UK markets:
+# y_both = batch_process(None, 'CustomUS_UK', market='BOTH')
+# y_both.batch_pipeline_full()
 
 
 def load_json(filepath):

@@ -1130,8 +1130,26 @@ class batch_process:
     resultsPath = ''
     result_file = ''
     
-    def __init__(self, tickers, sectors):
-        self.tickers = tickers
+    def __init__(self, tickers, sectors, market=None):
+        """
+        Initialize batch processing.
+        
+        Args:
+            tickers (list): List of ticker symbols, or None to use custom market tickers
+            sectors (str): Sector name for results file naming
+            market (str): Optional market to use custom tickers ('US', 'UK', 'BOTH'). 
+                         If provided, tickers parameter will be overridden
+        """
+        # Import here to avoid circular imports
+        from get_tickers import get_custom_tickers
+        
+        # Use custom tickers if market is specified
+        if market:
+            self.tickers = get_custom_tickers(market)
+            logger.info("Using custom ticker list for market: %s", market)
+        else:
+            self.tickers = tickers
+        
         basePath = find_path()
         current_date = dt.date.today().strftime('%Y-%m-%d')
         self.resultsPath = os.path.join(basePath, 'results', current_date)

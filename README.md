@@ -38,9 +38,3 @@ test function:
 
 We also run the selection daily and post here:
 [View Daily Selection Results](./results/README.md)
-
-If you enjoy this project and even gain profits from it, consider supporting through a donation via PayPal
-
-| **Paypal** |
-|------------|
-| [![](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/paypalme/JJandSean/10/?locale.x=en_US&currency_code=USD) |

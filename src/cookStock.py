@@ -168,6 +168,38 @@ except Exception:
     logger.debug("Unable to create cache directory %s", CACHE_DIR)
 
 
+def _to_epoch_seconds(val):
+    """Convert a date/datetime/ISO date string or numeric value to epoch seconds (int).
+
+    Accepts:
+    - int/float (assumed epoch seconds)
+    - numeric strings (digits or floats)
+    - 'YYYY-MM-DD' strings
+    - datetime.date or datetime.datetime objects
+    Raises ValueError on unrecognized inputs.
+    """
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            if val.isdigit():
+                return int(val)
+            try:
+                dtobj = dt.datetime.strptime(val, '%Y-%m-%d')
+                return int(time.mktime(dtobj.timetuple()))
+            except Exception:
+                return int(float(val))
+        if isinstance(val, dt.date):
+            dtobj = dt.datetime(val.year, val.month, val.day)
+            return int(time.mktime(dtobj.timetuple()))
+        if isinstance(val, dt.datetime):
+            return int(time.mktime(val.timetuple()))
+    except Exception as e:
+        logger.debug("Failed to convert %r to epoch seconds: %s", val, e)
+        raise
+    raise ValueError(f"Cannot convert {val!r} to epoch seconds")
+
+
 def _cache_file(ticker, days):
     safe_t = str(ticker).upper()
     return os.path.join(CACHE_DIR, f"{safe_t}_{days}.json")
@@ -196,28 +228,42 @@ def _cache_save(ticker, days, data):
             js.dump(data, f)
     except Exception:
         logger.debug("Cache save failed for %s", filepath, exc_info=True)
-try:
-    # Try the normal import first
-    from yahoofinancials import YahooFinancials
-except Exception:
+def _load_yahoo_from_package():
+    """Try importing YahooFinancials from the installed package (prefer explicit submodule).
+
+    Returns the `YahooFinancials` class if available, otherwise returns None.
+    """
     try:
-        # Try importing the common module path (explicit file-based import as a fallback)
+        # Prefer the explicit submodule which is more reliable for the vendored copy
         from yahoofinancials.yf import YahooFinancials
+        return YahooFinancials
     except Exception:
-        # Last-resort: load yf.py directly from the submodule path
         try:
-            import importlib.util
-            yf_path = os.path.join(yhPath, 'yahoofinancials', 'yf.py')
-            spec = importlib.util.spec_from_file_location('yahoofinancials.yf', yf_path)
-            if spec and spec.loader:
-                yf_mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(yf_mod)
-                YahooFinancials = getattr(yf_mod, 'YahooFinancials', None)
-            if YahooFinancials is None:
-                raise ImportError('YahooFinancials not found in yf.py')
+            # Fall back to top-level package attribute if present
+            from yahoofinancials import YahooFinancials
+            return YahooFinancials
         except Exception:
-            YahooFinancials = object
-            logger.warning("Failed to import YahooFinancials; some functionality may be limited due to missing dependency.")
+            return None
+
+# Attempt to load YahooFinancials from site packages / vendored package
+YahooFinancials = _load_yahoo_from_package()
+if YahooFinancials is None:
+    # Last-resort: try loading the local vendored file directly
+    try:
+        import importlib.util
+        yf_path = os.path.join(yhPath, 'yahoofinancials', 'yf.py')
+        spec = importlib.util.spec_from_file_location('yahoofinancials.yf', yf_path)
+        if spec and spec.loader:
+            yf_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(yf_mod)
+            YahooFinancials = getattr(yf_mod, 'YahooFinancials', None)
+    except Exception:
+        YahooFinancials = None
+
+if YahooFinancials is None:
+    # Fail fast with a clear message rather than silently falling back to `object`.
+    logger.error("yahoofinancials not available. Install project requirements (pip install -r requirements.txt) or set up the vendored package correctly.")
+    raise ImportError("yahoofinancials not available; please install the project's dependencies")
 
 #define some constants
 class algoParas:   
@@ -286,7 +332,14 @@ class cookFinancials(YahooFinancials):
             else:
                 logger.info("Fetching last %d days historical price data for %s", days, self.ticker)
                 try:
-                    self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=days)), str(date), 'daily')
+                    # log the input dates (use epoch timestamps for API)
+                    start_date = date - dt.timedelta(days=days)
+                    start_ts = _to_epoch_seconds(start_date)
+                    end_ts = _to_epoch_seconds(date)
+                    logger.info("Fetching data from %s to %s", str(start_date), str(date))
+                    logger.info("Fetching data from %d to %d", start_ts, end_ts)
+                    self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
+                    logger.info("Fetched")
                     _cache_save(self.ticker, days, self.priceData)
                 except Exception:
                     logger.exception("Failed to fetch historical price data for %s", self.ticker)
@@ -517,7 +570,9 @@ class cookFinancials(YahooFinancials):
         else:
             return 'do not buy'   
     def get_ma_ref(self, date_from, date_to):
-        data = self.get_historical_price_data(str(date_from),str(date_to), 'daily')
+        start_ts = _to_epoch_seconds(date_from)
+        end_ts = _to_epoch_seconds(date_to)
+        data = self.get_historical_price_data(start_ts, end_ts, 'daily')
         tmp = 0
         if not(data[self.ticker]['prices']):
             return -1
@@ -531,7 +586,10 @@ class cookFinancials(YahooFinancials):
     def get_ma(self, date_from, date_to):
         if not(self.priceData):
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         #don't need to pull data from remote, use local
         priceDataStruct = self.priceData[self.ticker]['prices']
         selectedPriceDataStruct = self.get_price_from_buffer_start_end(priceDataStruct, date_from, date_to)
@@ -575,7 +633,10 @@ class cookFinancials(YahooFinancials):
     def get_30day_trend(self):
         if not(self.priceData):
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         length = len(self.priceData[self.ticker]['prices'])
         #get 30 days data
         price30Structure = self.get_price_from_buffer(self.priceData[self.ticker]['prices'], dt.date.today()-dt.timedelta(days=30), 30)
@@ -588,7 +649,10 @@ class cookFinancials(YahooFinancials):
     def mv_strategy(self):
         if not(self.priceData):
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         if not self.current_stickerPrice:
             self.current_stickerPrice = self.get_current_price()
         currentPrice = self.current_stickerPrice
@@ -605,7 +669,10 @@ class cookFinancials(YahooFinancials):
         vol3day = []
         vol50day = []
         if not self.priceData:
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         length = len(self.priceData[self.ticker]['prices'])
         for i in range(checkDays):
             if not(self.priceData[self.ticker]['prices'][length-1-i]['volume']):
@@ -641,7 +708,10 @@ class cookFinancials(YahooFinancials):
         closePrice = []
         if not(self.priceData):
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         length = len(self.priceData[self.ticker]['prices'])
         for i in range(length):
             if not(self.priceData[self.ticker]['prices'][i]['close']):
@@ -703,7 +773,10 @@ class cookFinancials(YahooFinancials):
         to_date = startDate + dt.timedelta(frame)
         if not(self.priceData):
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         #don't need to pull data from remote, use local
         priceDataStruct = self.priceData[self.ticker]['prices']
         selectedPriceDataStruct = self.get_price_from_buffer(priceDataStruct, startDate, frame)
@@ -715,9 +788,14 @@ class cookFinancials(YahooFinancials):
         to_date = startDate + dt.timedelta(frame)
         if not(self.priceData):
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         #don't need to pull data from remote, use local
-        priceData = self.get_historical_price_data(str(startDate), str(to_date), 'daily')
+        start_ts = _to_epoch_seconds(startDate)
+        end_ts = _to_epoch_seconds(to_date)
+        priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         priceDataStruct = priceData[self.ticker]['prices']    
         return priceDataStruct
     
@@ -897,7 +975,10 @@ class cookFinancials(YahooFinancials):
         # Load price data if not already loaded
         if not self.priceData:
             date = dt.date.today()
-            self.priceData = self.get_historical_price_data(str(date - dt.timedelta(days=365)), str(date), 'daily')
+            start_date = date - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
 
         # Fetch volumes for the specific period in the footprint
         priceDataStruct = self.priceData[self.ticker]['prices']
@@ -1039,7 +1120,10 @@ class batch_process:
                 logger.info("Prefetching last %d days of historical price data concurrently for %d tickers", days, total)
                 try:
                     yahoo_all = YahooFinancials(self.tickers, concurrent=True, max_workers=PREFETCH_WORKERS)
-                    price_map = yahoo_all.get_historical_price_data(str(dt.date.today() - dt.timedelta(days=days)), str(dt.date.today()), 'daily')
+                    start_date = dt.date.today() - dt.timedelta(days=days)
+                    start_ts = _to_epoch_seconds(start_date)
+                    end_ts = _to_epoch_seconds(dt.date.today())
+                    price_map = yahoo_all.get_historical_price_data(start_ts, end_ts, 'daily')
                     # Save individual caches
                     for t, pdata in (price_map.items() if isinstance(price_map, dict) else []):
                         try:

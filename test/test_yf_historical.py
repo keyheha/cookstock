@@ -11,6 +11,27 @@ import importlib.util
 import json
 import argparse
 import datetime as dt
+import time
+
+
+def _to_epoch_seconds(val):
+    """Convert YYYY-MM-DD or numeric string/int/float to epoch seconds (int)."""
+    if isinstance(val, (int, float)):
+        return int(val)
+    if isinstance(val, str):
+        if val.isdigit():
+            return int(val)
+        try:
+            dtobj = dt.datetime.strptime(val, '%Y-%m-%d')
+            return int(time.mktime(dtobj.timetuple()))
+        except Exception:
+            return int(float(val))
+    if isinstance(val, dt.date):
+        dtobj = dt.datetime(val.year, val.month, val.day)
+        return int(time.mktime(dtobj.timetuple()))
+    if isinstance(val, dt.datetime):
+        return int(time.mktime(val.timetuple()))
+    raise ValueError(f"Cannot convert {val!r} to epoch seconds")
 
 
 def _load_yahoo_from_package():
@@ -41,7 +62,7 @@ def main(argv=None):
     parser.add_argument('--ticker', default='AAPL', help='Ticker symbol to fetch')
     parser.add_argument('--start', help='Start date YYYY-MM-DD')
     parser.add_argument('--end', help='End date YYYY-MM-DD')
-    parser.add_argument('--days', type=int, default=10, help='Number of days to fetch (used when --start/--end not provided)')
+    parser.add_argument('--days', type=int, default=120, help='Number of days to fetch (used when --start/--end not provided). Default: 120')
 
     args = parser.parse_args(argv)
 
@@ -52,13 +73,14 @@ def main(argv=None):
 
     # Determine date range
     if args.start and args.end:
-        start = args.start
-        end = args.end
+        # Normalize provided args (accept YYYY-MM-DD or numeric epoch)
+        start = _to_epoch_seconds(args.start)
+        end = _to_epoch_seconds(args.end)
     else:
         today = dt.date.today()
-        end = today.isoformat()
+        end = _to_epoch_seconds(today)
         start_date = today - dt.timedelta(days=args.days - 1)
-        start = start_date.isoformat()
+        start = _to_epoch_seconds(start_date)
 
     y = YahooFinancials(args.ticker)
 
@@ -131,7 +153,9 @@ def main(argv=None):
     y.get_stock_data = types.MethodType(fake_get_stock_data, y)
 
     try:
+        print(f'Performing mocked fetch for {args.ticker} from {start} to {end}...')
         res = y.get_historical_price_data(start, end, 'daily')
+        print("Fetched (mock) historical price data.")
     except Exception as e:
         print('FAIL: get_historical_price_data raised:', e)
         return 1

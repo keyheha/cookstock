@@ -10,6 +10,9 @@ conda activate cookStock
 
 ```bash
 python batch/cookStockPipeline.py
+
+python test/runTest_cookStock_basic.py
+python test/test_yf_historical.py
 ```
 
 ```bash

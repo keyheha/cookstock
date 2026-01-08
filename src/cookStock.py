@@ -1824,7 +1824,7 @@ def setup_csv_file(filepath):
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Ticker', 'Buy Signal', 'Sell Signal', 'Swing Trade Entry', 'Current Price', 'Support Price', 'Pressure Price', 
-                        'Good Pivot', 'Deep Correction', 'Demand Dry'])
+                        'Price to Support', 'Good Pivot', 'Deep Correction', 'Demand Dry'])
     logger.info("Created/reset CSV file: %s", filepath)
 
 def append_to_csv(filepath, ticker, current_price, support_price, pressure_price,
@@ -1845,10 +1845,16 @@ def append_to_csv(filepath, ticker, current_price, support_price, pressure_price
     # Swing trade entry signal
     swing_entry = 'YES' if is_swing_trade_entry else 'NO'
     
+    # Calculate price to support (current price - support price)
+    try:
+        price_to_support = round(float(current_price) - float(support_price), 2)
+    except (ValueError, TypeError):
+        price_to_support = 0
+    
     with open(filepath, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([ticker, buy_signal, sell_signal, swing_entry, current_price, support_price, pressure_price,
-                        is_good_pivot, is_deep_correction, is_demand_dry])
+                        price_to_support, is_good_pivot, is_deep_correction, is_demand_dry])
 
 def get_ticker_market(ticker):
     """Determine the market from ticker suffix.
@@ -1865,7 +1871,7 @@ def get_ticker_market(ticker):
         return 'US'
 
 def sort_csv_by_buy_signal(filepath):
-    """Sort CSV file by Buy Signal (YES first), then Sell Signal (YES last)."""
+    """Sort CSV file by Buy Signal (YES first), then by Price to Support (closest to support first), then Sell Signal (YES last)."""
     import csv
     try:
         # Read all rows
@@ -1878,9 +1884,19 @@ def sort_csv_by_buy_signal(filepath):
         if not rows:
             return
         
-        # Sort by: Buy Signal (YES first), then Sell Signal (NO first)
-        # Using tuple sort: (not buy_yes, sell_yes) gives us buy YES first, sell NO first
-        rows.sort(key=lambda row: (row[1] != 'YES', row[2] == 'YES'))
+        # Sort by: Buy Signal (YES first), then Price to Support (smallest first for buy signals), then Sell Signal (NO first)
+        # Using tuple sort: (not buy_yes, price_to_support if buy_yes else large_number, sell_yes)
+        def sort_key(row):
+            buy_yes = row[1] == 'YES'
+            sell_yes = row[2] == 'YES'
+            try:
+                # Price to Support is at index 7 (after Pressure Price)
+                price_to_support = float(row[7]) if buy_yes else float('inf')
+            except (ValueError, IndexError):
+                price_to_support = float('inf')
+            return (not buy_yes, price_to_support, sell_yes)
+        
+        rows.sort(key=sort_key)
         
         # Write back sorted data
         with open(filepath, 'w', newline='') as f:

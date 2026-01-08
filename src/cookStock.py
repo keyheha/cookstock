@@ -751,22 +751,60 @@ class cookFinancials:
             end_ts = _to_epoch_seconds(date)
             self.priceData = self.get_historical_price_data(start_ts, end_ts, 'daily')
         length = len(self.priceData[self.ticker]['prices'])
+        
+        # Check if we have enough data
+        if length < checkDays:
+            logger.warning("get_vol: Insufficient data for %s (length=%d, checkDays=%d)", self.ticker, length, checkDays)
+            return [], 0, [], 0
+        
         for i in range(checkDays):
-            if not(self.priceData[self.ticker]['prices'][length-1-i]['volume']):
-                self.priceData[self.ticker]['prices'][length-1-i]['volume'] = self.priceData[self.ticker]['prices'][length-1-i+1]['volume']
-            vol3day.append(self.priceData[self.ticker]['prices'][length-1-i]['volume'])
+            idx = length - 1 - i
+            if idx < 0 or idx >= length:
+                logger.warning("get_vol: Index out of bounds for %s (idx=%d, length=%d)", self.ticker, idx, length)
+                break
+            if not(self.priceData[self.ticker]['prices'][idx]['volume']):
+                # Use previous day's volume if current is missing (but avoid going out of bounds)
+                if idx + 1 < length:
+                    self.priceData[self.ticker]['prices'][idx]['volume'] = self.priceData[self.ticker]['prices'][idx+1]['volume']
+                else:
+                    self.priceData[self.ticker]['prices'][idx]['volume'] = 0
+            vol3day.append(self.priceData[self.ticker]['prices'][idx]['volume'])
         #print(vol3day)
-        for i in range(np.min([avrgDays, length])):
-            if not(self.priceData[self.ticker]['prices'][length-1-checkDays-i]['volume']):
-                self.priceData[self.ticker]['prices'][length-1-checkDays-i]['volume'] = self.priceData[self.ticker]['prices'][length-1-checkDays-i+1]['volume']
-        #    print(self.priceData[self.ticker]['prices'][length-1-checkDays-i]['volume'])
-            vol50day.append(self.priceData[self.ticker]['prices'][length-1-checkDays-i]['volume'])
-        return vol3day, np.sum(vol3day)/checkDays, vol50day, np.sum(vol50day)/avrgDays
+        
+        # Check if we have enough data for the second loop
+        if length < checkDays + 1:
+            logger.warning("get_vol: Insufficient data for avgDays calculation for %s (length=%d, checkDays=%d)", self.ticker, length, checkDays)
+            return vol3day, np.sum(vol3day)/checkDays if vol3day else 0, [], 0
+        
+        for i in range(np.min([avrgDays, length - checkDays])):
+            idx = length - 1 - checkDays - i
+            if idx < 0 or idx >= length:
+                logger.warning("get_vol: Index out of bounds for avgDays for %s (idx=%d, length=%d)", self.ticker, idx, length)
+                break
+            if not(self.priceData[self.ticker]['prices'][idx]['volume']):
+                # Use previous day's volume if current is missing (but avoid going out of bounds)
+                if idx + 1 < length:
+                    self.priceData[self.ticker]['prices'][idx]['volume'] = self.priceData[self.ticker]['prices'][idx+1]['volume']
+                else:
+                    self.priceData[self.ticker]['prices'][idx]['volume'] = 0
+        #    print(self.priceData[self.ticker]['prices'][idx]['volume'])
+            vol50day.append(self.priceData[self.ticker]['prices'][idx]['volume'])
+        
+        # Calculate averages safely
+        avgVol3day = np.sum(vol3day) / len(vol3day) if vol3day else 0
+        avgVol50day = np.sum(vol50day) / len(vol50day) if vol50day else 0
+        
+        return vol3day, avgVol3day, vol50day, avgVol50day
     
     @_log_step()
     def vol_strategy(self):
         # Fetch the 3-day and 50-day volume averages
         vol3day, avgVol3day, vol50day, avgVol50day = self.get_vol(3, 200)
+        
+        # Check if we got valid data
+        if avgVol3day == 0 and avgVol50day == 0:
+            logger.warning("vol_strategy: No volume data available for %s", self.ticker)
+            return -1
 
         # Check if 3-day average volume is at least 1.5x the 50-day average volume
         if avgVol3day >= algoParas.PEAK_VOL_RATIO* avgVol50day and avgVol50day >= algoParas.VOLUME_THRESHOLD:

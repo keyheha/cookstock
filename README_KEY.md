@@ -11,3 +11,8 @@ conda activate cookStock
 ```bash
 python batch/cookStockPipeline.py
 ```
+
+```bash
+pip freeze > requirements.txt
+pip install -r requirements.txt
+```

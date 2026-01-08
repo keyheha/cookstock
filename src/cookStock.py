@@ -17,6 +17,7 @@ import logging
 import time
 import threading
 import functools
+import subprocess
 
 # Basic logger setup for pipeline progress
 logger = logging.getLogger(__name__)
@@ -62,14 +63,14 @@ def _log_step(level='info', show_args=False):
                 try:
                     arg_preview = args[1:] if len(args) > 0 else args
                     if level == 'debug':
-                        logger.debug("Entering %s args=%s kwargs=%s", name, arg_preview, kwargs)
+                        logger.info("Entering %s args=%s kwargs=%s", name, arg_preview, kwargs)
                     else:
                         logger.info("Entering %s", name)
                 except Exception:
-                    logger.debug("Entering %s (args omitted due to formatting error)", name)
+                    logger.info("Entering %s (args omitted due to formatting error)", name)
             else:
                 if level == 'debug':
-                    logger.debug("Starting %s", name)
+                    logger.info("Starting %s", name)
                 else:
                     logger.info("Starting %s", name)
             t0 = time.time()
@@ -77,7 +78,7 @@ def _log_step(level='info', show_args=False):
                 result = func(*args, **kwargs)
                 elapsed = time.time() - t0
                 if level == 'debug':
-                    logger.debug("Finished %s in %.2fs", name, elapsed)
+                    logger.info("Finished %s in %.2fs", name, elapsed)
                 else:
                     logger.info("Finished %s in %.2fs", name, elapsed)
                 return result
@@ -88,12 +89,63 @@ def _log_step(level='info', show_args=False):
     return _decorator
 
 def find_path():
-    home_dir = os.path.expanduser("~")  # Get the home directory
-    for root, dirs, files in os.walk(home_dir):  # Walk through the directory structure
-        if 'cookstock' in dirs:
-            return os.path.join(root, 'cookstock')
-    return None  # Return None if the folder was not found
+    """Find the 'cookstock' project root quickly.
+
+    Strategy (fast):
+    - honor COOKSTOCK_PATH environment variable if set
+    - walk upward from this file's directory (or cwd) and look for a parent named 'cookstock'
+    - try to use git to find the repo root if available
+    - check a few common locations
+    Returns absolute path or None.
+    """
+    # 1) env var override
+    env_path = os.environ.get('COOKSTOCK_PATH')
+    if env_path:
+        p = os.path.expanduser(env_path)
+        if os.path.isdir(p):
+            logger.info("Using cookstock path from COOKSTOCK_PATH: %s", p)
+            return os.path.abspath(p)
+
+    # 2) search upward from this file (or cwd)
+    try:
+        start = os.path.dirname(__file__)
+    except NameError:
+        start = os.getcwd()
+    p = os.path.abspath(start)
+    while True:
+        if os.path.basename(p).lower() == 'cookstock':
+            logger.info("Found cookstock by upward search: %s", p)
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            break
+        p = parent
+
+    # 3) try git root
+    try:
+        git_root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], stderr=subprocess.DEVNULL).decode().strip()
+        if os.path.basename(git_root).lower() == 'cookstock':
+            logger.info("Found cookstock via git root: %s", git_root)
+            return git_root
+    except Exception:
+        logger.debug("git root lookup failed", exc_info=True)
+
+    # 4) common locations
+    common = ['~/Sources/cookstock', '~/cookstock', '~/Projects/cookstock']
+    for c in common:
+        cpath = os.path.expanduser(c)
+        if os.path.isdir(cpath):
+            logger.info("Found cookstock in common path: %s", cpath)
+            return os.path.abspath(cpath)
+
+    logger.warning("Could not find 'cookstock' project root; returning None. Set COOKSTOCK_PATH env var to override.")
+    return None
+
 basePath = find_path()
+if not basePath:
+    logger.error("'cookstock' root not found; please set COOKSTOCK_PATH env var or run from inside the repo.")
+    raise RuntimeError("'cookstock' root not found; set COOKSTOCK_PATH or run from inside repo")
+
 yhPath = os.path.join(basePath, 'yahoofinancials')
 # Prefer the inner package directory inside the cloned repo (yahoofinancials/yahoofinancials)
 inner_yh = os.path.join(yhPath, 'yahoofinancials')
@@ -101,6 +153,49 @@ if os.path.isdir(inner_yh):
     sys.path.insert(0, inner_yh)
 else:
     sys.path.insert(0, yhPath)
+
+# Configurable defaults (can be overridden with environment variables)
+HISTORICAL_DAYS_DEFAULT = int(os.getenv("HISTORICAL_DAYS", "120"))
+CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "24"))
+PREFETCH_ENABLED = os.getenv("PREFETCH", "false").lower() in ("1", "true", "yes")
+PREFETCH_WORKERS = int(os.getenv("PREFETCH_WORKERS", "8"))
+
+# Cache directory for historical price data
+CACHE_DIR = os.path.join(basePath, 'results', 'cache', 'prices')
+try:
+    os.makedirs(CACHE_DIR, exist_ok=True)
+except Exception:
+    logger.debug("Unable to create cache directory %s", CACHE_DIR)
+
+
+def _cache_file(ticker, days):
+    safe_t = str(ticker).upper()
+    return os.path.join(CACHE_DIR, f"{safe_t}_{days}.json")
+
+
+def _cache_load(ticker, days, ttl_hours=CACHE_TTL_HOURS):
+    filepath = _cache_file(ticker, days)
+    try:
+        if not os.path.exists(filepath):
+            return None
+        mtime = os.path.getmtime(filepath)
+        age_hours = (time.time() - mtime) / 3600.0
+        if age_hours > ttl_hours:
+            return None
+        with open(filepath, 'r') as f:
+            return js.load(f)
+    except Exception:
+        logger.debug("Cache load failed for %s", filepath, exc_info=True)
+        return None
+
+
+def _cache_save(ticker, days, data):
+    filepath = _cache_file(ticker, days)
+    try:
+        with open(filepath, 'w') as f:
+            js.dump(data, f)
+    except Exception:
+        logger.debug("Cache save failed for %s", filepath, exc_info=True)
 try:
     # Try the normal import first
     from yahoofinancials import YahooFinancials
@@ -151,17 +246,59 @@ class cookFinancials(YahooFinancials):
     current_stickerPrice = []
     #define some parameters
     
-    def __init__(self, ticker):
-        super().__init__(ticker)  # Calls the parent class's initializer
+    def __init__(self, ticker, priceData=None, fetch_days=None):
+        # Calls the parent class's initializer (some vendored imports may not accept args)
+        try:
+            super().__init__(ticker)
+        except TypeError:
+            try:
+                super().__init__()
+            except Exception:
+                pass
+        except Exception:
+            logger.debug("Parent init failed for %s", ticker, exc_info=True)
+
         if isinstance(ticker, str):
             self.ticker = ticker.upper()
         else:
             self.ticker = [t.upper() for t in ticker]
         self._cache = {}
+
+        # Determine how many days of history to fetch
+        days = fetch_days if fetch_days is not None else HISTORICAL_DAYS_DEFAULT
+
         date = dt.date.today()
-        self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=365)), str(date), 'daily')
-        #get current_stickerPrice from self.priceData
-        self.current_stickerPrice = self.priceData[self.ticker]['prices'][-1]['close']
+
+        # If priceData is provided (e.g., from prefetch), use it
+        if priceData:
+            logger.info("Using pre-fetched priceData for %s", self.ticker)
+            # priceData may be a dict mapping tickers to their data
+            if isinstance(priceData, dict) and self.ticker in priceData:
+                self.priceData = {self.ticker: priceData[self.ticker]}
+            else:
+                self.priceData = priceData
+        else:
+            # try load cache
+            cached = _cache_load(self.ticker, days)
+            if cached is not None:
+                logger.info("Loaded cached historical price data for %s (last %d days)", self.ticker, days)
+                self.priceData = cached
+            else:
+                logger.info("Fetching last %d days historical price data for %s", days, self.ticker)
+                try:
+                    self.priceData = self.get_historical_price_data(str(date -  dt.timedelta(days=days)), str(date), 'daily')
+                    _cache_save(self.ticker, days, self.priceData)
+                except Exception:
+                    logger.exception("Failed to fetch historical price data for %s", self.ticker)
+                    self.priceData = {self.ticker: {'prices': []}}
+
+        logger.info("Initialized cookFinancials for ticker: %s", self.ticker)
+        #get current_stickerPrice from self.priceData, guard against missing data
+        try:
+            self.current_stickerPrice = self.priceData[self.ticker]['prices'][-1]['close']
+        except Exception:
+            logger.debug("Could not set current_stickerPrice for %s", self.ticker)
+            self.current_stickerPrice = None
         
     def get_balanceSheetHistory(self):
         self.bshData = self.get_financial_stmts('annual', 'balance')['balanceSheetHistory']
@@ -358,7 +495,7 @@ class cookFinancials(YahooFinancials):
         eps = self.get_earnings_per_share()
         if not(eps):
             eps = self.get_key_statistics_data()[self.ticker]['trailingEps']
-        logger.debug("eps: %s", eps)
+        logger.info("eps: %s", eps)
         return eps
     
     def get_PE(self):
@@ -669,11 +806,11 @@ class cookFinancials(YahooFinancials):
                     counter2 = 0
                 else:
                     counter2 = counter2 + 1
-                    logger.debug('start lock the date for %s', priceDate)
+                    logger.info('start lock the date for %s', priceDate)
                 if counter2 >= counterThr or j == numOfDate2-1:
                     #get local high
-                    logger.debug('find the local lowest price: %s', localLowestPrice)
-                    logger.debug('date is %s', localLowestDate)
+                    logger.info('find the local lowest price: %s', localLowestPrice)
+                    logger.info('date is %s', localLowestDate)
                     break
                 
         #
@@ -893,6 +1030,29 @@ class batch_process:
         date_to = (dt.date.today())
         start_time = time.time()
         logger.info("Starting batch_pipeline_full for %d tickers", total)
+
+        # Optionally prefetch historical price data for the entire batch (concurrent)
+        price_map = None
+        if PREFETCH_ENABLED and total > 1:
+            try:
+                days = HISTORICAL_DAYS_DEFAULT
+                logger.info("Prefetching last %d days of historical price data concurrently for %d tickers", days, total)
+                try:
+                    yahoo_all = YahooFinancials(self.tickers, concurrent=True, max_workers=PREFETCH_WORKERS)
+                    price_map = yahoo_all.get_historical_price_data(str(dt.date.today() - dt.timedelta(days=days)), str(dt.date.today()), 'daily')
+                    # Save individual caches
+                    for t, pdata in (price_map.items() if isinstance(price_map, dict) else []):
+                        try:
+                            _cache_save(t, days, {t: pdata})
+                        except Exception:
+                            logger.debug("Failed to cache prefetch for %s", t, exc_info=True)
+                    logger.info("Prefetch complete")
+                except Exception:
+                    logger.exception("Prefetch failed; continuing without prefetch")
+                    price_map = None
+            except Exception:
+                logger.debug("Prefetch decision failed", exc_info=True)
+
         for idx in range(total):
             try:
                 ticker = self.tickers[idx]
@@ -903,7 +1063,11 @@ class batch_process:
                 try:
                     logger.info("Starting pipeline for %s", ticker)
                     t0 = time.time()
-                    x = cookFinancials(ticker)
+                    # If we have a prefetch price_map, pass it in to avoid per-ticker downloads
+                    if price_map:
+                        x = cookFinancials(ticker, priceData=price_map, fetch_days=HISTORICAL_DAYS_DEFAULT)
+                    else:
+                        x = cookFinancials(ticker)
                     flag = x.combined_best_strategy()
                     logger.info("combined_best_strategy for %s finished in %.2fs", ticker, time.time()-t0)
                     if flag == True:
@@ -964,7 +1128,7 @@ class batch_process:
                         # ax[1].set_xticks(np.arange(0, len(date)+1, 12))
                         
                         footprint = x.get_footPrint()
-                        logger.debug("footprint for %s: %s", ticker, footprint)
+                        logger.info("footprint for %s: %s", ticker, footprint)
                         isGoodPivot, currentPrice, supportPrice, pressurePrice = x.is_pivot_good()
                         logger.info("is_good_pivot=%s for %s", isGoodPivot, ticker)
                         isDeepCor = x.is_correction_deep()
@@ -977,7 +1141,7 @@ class batch_process:
 
                         for ind, item in enumerate(date):
                             if item == startDate:
-                                logger.debug("start index for demand dry for %s: %d", ticker, ind)
+                                logger.info("start index for demand dry for %s: %d", ticker, ind)
                                 break
                         x_axis = []
                         for i in range(len(volume_ls)):
@@ -989,7 +1153,7 @@ class batch_process:
                         
                         for ind, item in enumerate(date):
                             if item == recentStart:
-                                logger.debug("recent start index for %s: %d", ticker, ind)
+                                logger.info("recent start index for %s: %d", ticker, ind)
                                 break
                         x_axis = []
                         for i in range(len(volume_re)):

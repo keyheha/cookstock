@@ -9,7 +9,6 @@ source venv/bin/activate
 python batch/cookStockPipeline.py
 
 python test/runTest_cookStock_basic.py
-python test/test_yf_historical.py
 python test/test_yfinance_migration.py
 ```
 

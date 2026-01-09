@@ -5,10 +5,9 @@ import requests
 
 _EXCHANGE_LIST = ['nyse', 'nasdaq', 'amex']
 
-_SECTORS_LIST = set(['Consumer Non-Durables', 'Capital Goods', 'Health Care',
-                     'Energy', 'Technology', 'Basic Industries', 'Finance',
-                     'Consumer Services', 'Public Utilities', 'Miscellaneous',
-                     'Consumer Durables', 'Transportation'])
+_SECTORS_LIST = {'Consumer Non-Durables', 'Capital Goods', 'Health Care', 'Energy', 'Technology', 'Basic Industries',
+                 'Finance', 'Consumer Services', 'Public Utilities', 'Miscellaneous', 'Consumer Durables',
+                 'Transportation'}
 
 # Custom ticker lists
 CUSTOM_TICKERS_US = [
@@ -26,15 +25,15 @@ CUSTOM_TICKERS_US = [
     'IBM', 'INTC', 'INTU', 'IREN',
     'JNJ', 'JPM',
     'KEY', 'KO',
-    'LEU', 'LITE', 'LLY',
+    'LEU', 'LITE', 'LLY', 'LMT', 'LRCX',
     'MA', 'MCD', 'MDB', 'META', 'MNDY', 'MRK', 'MRNA', 'MS', 'MSFT', 'MU', 'MMM',
     'NBIS', 'NEE', 'NET', 'NFLX', 'NKE', 'NOW', 'NTAP', 'NUAI', 'NVDA',
     'O', 'OKLO', 'OKTA', 'ONDS', 'ORCL',
     'PEP', 'PG', 'PHM', 'PINS', 'PLTR', 'PM', 'PSTG', 'PSX', 'PYPL',
     'QCOM',
-    'RBLX', 'RKLB', 'ROKU', 'RTX',
+    'RBLX', 'RKLB', 'ROKU', 'RTX', 'RKT',
     'SANM', 'SBUX', 'SHOP', 'SMTC', 'SNAP', 'SNDK', 'SNOW', 'SPG', 'SPGI', 'SPOT',
-    'SQ', 'STX',
+    'SQ', 'STX', 'SMR',
     'TEAM', 'TEM', 'TGT', 'TLN', 'TMO', 'TSLA', 'TSM', 'TTD', 'TWLO', 'TXN',
     'UBER', 'UDMY', 'UNH', 'UNP', 'UPS', 'UPWK',
     'V', 'VEEV', 'VMEO', 'VRT', 'VST', 'VZ',

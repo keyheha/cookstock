@@ -866,6 +866,70 @@ class cookFinancials:
         """Get 8-period EMA."""
         return self.get_ema(date, 8)
 
+    def get_rsi(self, date, period=14):
+        """Calculate Relative Strength Index (RSI) for momentum analysis.
+        
+        Args:
+            date: The end date for RSI calculation
+            period: The number of periods for RSI (default: 14)
+            
+        Returns:
+            RSI value (0-100) or -1 if insufficient data
+            RSI < 30 = Oversold (potential buy)
+            RSI > 70 = Overbought (potential sell)
+        """
+        if not self.priceData:
+            date_now = dt.date.today()
+            start_date = date_now - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date_now)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, "daily")
+        
+        # Get price data up to the specified date
+        date_from = date - dt.timedelta(days=period * 3)
+        priceDataStruct = self.priceData[self.ticker]["prices"]
+        selectedPriceDataStruct = self.get_price_from_buffer_start_end(
+            priceDataStruct, date_from, date
+        )
+        
+        if not selectedPriceDataStruct or len(selectedPriceDataStruct) < period + 1:
+            logger.warning(
+                "get_rsi: Insufficient data for %s (period=%d)", self.ticker, period
+            )
+            return -1
+        
+        # Extract close prices
+        close_prices = []
+        for item in selectedPriceDataStruct:
+            if item["close"]:
+                close_prices.append(item["close"])
+            elif close_prices:
+                close_prices.append(close_prices[-1])
+        
+        if len(close_prices) < period + 1:
+            return -1
+        
+        # Calculate price changes
+        deltas = np.diff(close_prices)
+        
+        # Separate gains and losses
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        
+        # Calculate average gain and loss
+        avg_gain = np.mean(gains[-period:])
+        avg_loss = np.mean(losses[-period:])
+        
+        # Avoid division by zero
+        if avg_loss == 0:
+            return 100 if avg_gain > 0 else 50
+        
+        # Calculate RS and RSI
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        return rsi
+
     def is_swing_trade_entry(self):
         """Check for swing trade entry signal.
 
@@ -2346,6 +2410,7 @@ def calculate_common_buy_signal(ticker_obj, current_price, support_price, pressu
     5. Oversold Recovery: Price was oversold and is recovering with momentum
     6. Momentum Surge: Strong upward momentum with confirming volume
     7. Consolidation Breakout: Price breaks out from tight consolidation pattern
+    8. RSI Oversold: RSI < 30 (oversold momentum indicator)
     
     Args:
         ticker_obj: cookFinancials object with price/volume data
@@ -2495,6 +2560,14 @@ def calculate_common_buy_signal(ticker_obj, current_price, support_price, pressu
         except Exception:
             pass
         
+        # 8. RSI Oversold: RSI < 30 indicates oversold condition
+        try:
+            rsi = ticker_obj.get_rsi(date, period=14)
+            if rsi != -1 and rsi < 30:
+                buy_reasons.append("RSI_OVERSOLD")
+        except Exception:
+            pass
+        
     except Exception as e:
         logger.warning("Error calculating common buy signal for %s: %s", 
                       ticker_obj.ticker if hasattr(ticker_obj, 'ticker') else 'unknown', e)
@@ -2519,6 +2592,7 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
     6. Volume Climax: High volume selloff (>2x average) with price drop >3%
     7. Failed Rally: Price rejected at resistance with volume decline
     8. Trailing Stop: Price drops >8% from recent high
+    9. RSI Overbought: RSI > 70 (overbought momentum indicator)
     
     Args:
         ticker_obj: cookFinancials object with price/volume data
@@ -2616,6 +2690,14 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
                     drop_pct = (current_price - recent_high) / recent_high * 100
                     if drop_pct < -8:
                         sell_reasons.append("TRAILING_STOP")
+        except Exception:
+            pass
+        
+        # 9. RSI Overbought: RSI > 70 indicates overbought condition (potential reversal)
+        try:
+            rsi = ticker_obj.get_rsi(date, period=14)
+            if rsi != -1 and rsi > 70:
+                sell_reasons.append("RSI_OVERBOUGHT")
         except Exception:
             pass
         

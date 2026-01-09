@@ -869,11 +869,13 @@ class cookFinancials:
     def is_swing_trade_entry(self):
         """Check for swing trade entry signal.
 
-        Criteria:
+        Criteria (Primary - REQUIRED):
         - Current price is above 8 EMA (Exponential Moving Average)
         - Current price is above 200 SMA (Simple Moving Average)
-        - Average daily volume is over 500 million
-        - Market cap is over 1 billion
+        
+        Criteria (Secondary - AT LEAST ONE):
+        - Average volume over 1 million shares/day (good liquidity)
+        - Market cap over $1 billion (large-cap)
 
         Returns:
             Tuple (bool, dict): (True/False, details dict with prices, EMAs, and reasons)
@@ -911,6 +913,8 @@ class cookFinancials:
                 return False, {}
 
             # Check average volume (last 20 days)
+            # Relaxed threshold: 1 million for good liquidity (was 500M which is too strict)
+            # 1M shares/day is standard for institutional trading without significant slippage
             avg_volume = 0
             volume_check = False
             try:
@@ -919,9 +923,9 @@ class cookFinancials:
                     if len(priceDataStruct) >= 20:
                         recent_volumes = [priceDataStruct[i]["volume"] for i in range(-20, 0)]
                         avg_volume = np.mean(recent_volumes)
-                        volume_check = avg_volume > 500_000_000  # 500 million
+                        volume_check = avg_volume > 1_000_000  # 1 million (realistic liquidity threshold)
                         logger.info(
-                            "is_swing_trade_entry %s: avg_volume=%.0f (>500M: %s)",
+                            "is_swing_trade_entry %s: avg_volume=%.0f (>1M: %s)",
                             self.ticker,
                             avg_volume,
                             volume_check,
@@ -929,7 +933,8 @@ class cookFinancials:
             except Exception as e:
                 logger.warning("Failed to check volume for %s: %s", self.ticker, e)
 
-            # Check market cap (> 1 billion)
+            # Check market cap (> 1 billion for large-cap)
+            # Keeps higher quality standard for company size
             market_cap_B = self.get_marketCap_B()
             market_cap_check = False
             if market_cap_B != "na":
@@ -945,10 +950,15 @@ class cookFinancials:
                     "is_swing_trade_entry: No market cap data for %s", self.ticker
                 )
 
-            # Check conditions: price > 8 EMA AND price > 200 SMA AND volume > 500M AND market cap > 1B
+            # Check conditions: price > 8 EMA AND price > 200 SMA (required)
+            # Volume and market cap are secondary filters - at least one should pass
             is_above_ema8 = current_price > ema_8
             is_above_sma200 = current_price > sma_200
-            is_entry_signal = is_above_ema8 and is_above_sma200 and volume_check and market_cap_check
+            
+            # Primary signal: technical indicators
+            # Secondary: at least decent liquidity OR size (relaxed requirement)
+            is_entry_signal = (is_above_ema8 and is_above_sma200 and 
+                             (volume_check or market_cap_check))
             
             # Build reasons list
             swing_reasons = []
@@ -957,7 +967,7 @@ class cookFinancials:
             if is_above_sma200:
                 swing_reasons.append("ABOVE_200SMA")
             if volume_check:
-                swing_reasons.append("VOL>500M")
+                swing_reasons.append("VOL>1M")
             if market_cap_check:
                 swing_reasons.append("MCAP>1B")
 

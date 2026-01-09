@@ -930,6 +930,130 @@ class cookFinancials:
         
         return rsi
 
+    def get_macd(self, date, fast=12, slow=26, signal=9):
+        """Calculate MACD (Moving Average Convergence Divergence).
+        
+        Args:
+            date: The end date for MACD calculation
+            fast: Fast EMA period (default: 12)
+            slow: Slow EMA period (default: 26)
+            signal: Signal line EMA period (default: 9)
+            
+        Returns:
+            tuple: (macd_line, signal_line, histogram) or (None, None, None) if insufficient data
+        """
+        if not self.priceData:
+            date_now = dt.date.today()
+            start_date = date_now - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date_now)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, "daily")
+        
+        # Get price data
+        date_from = date - dt.timedelta(days=slow * 3)
+        priceDataStruct = self.priceData[self.ticker]["prices"]
+        selectedPriceDataStruct = self.get_price_from_buffer_start_end(
+            priceDataStruct, date_from, date
+        )
+        
+        if not selectedPriceDataStruct or len(selectedPriceDataStruct) < slow + signal:
+            return None, None, None
+        
+        # Extract close prices
+        close_prices = [item["close"] for item in selectedPriceDataStruct if item["close"]]
+        if len(close_prices) < slow + signal:
+            return None, None, None
+        
+        # Calculate EMAs
+        prices_series = pd.Series(close_prices)
+        ema_fast = prices_series.ewm(span=fast, adjust=False).mean()
+        ema_slow = prices_series.ewm(span=slow, adjust=False).mean()
+        
+        # MACD line = Fast EMA - Slow EMA
+        macd_line = ema_fast - ema_slow
+        
+        # Signal line = 9-period EMA of MACD line
+        signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+        
+        # Histogram = MACD line - Signal line
+        histogram = macd_line - signal_line
+        
+        return macd_line.iloc[-1], signal_line.iloc[-1], histogram.iloc[-1]
+
+    def get_atr(self, date, period=14):
+        """Calculate Average True Range (ATR) for volatility measurement.
+        
+        Args:
+            date: The end date for ATR calculation
+            period: The number of periods for ATR (default: 14)
+            
+        Returns:
+            ATR value or -1 if insufficient data
+        """
+        if not self.priceData:
+            date_now = dt.date.today()
+            start_date = date_now - dt.timedelta(days=365)
+            start_ts = _to_epoch_seconds(start_date)
+            end_ts = _to_epoch_seconds(date_now)
+            self.priceData = self.get_historical_price_data(start_ts, end_ts, "daily")
+        
+        # Get price data
+        date_from = date - dt.timedelta(days=period * 3)
+        priceDataStruct = self.priceData[self.ticker]["prices"]
+        selectedPriceDataStruct = self.get_price_from_buffer_start_end(
+            priceDataStruct, date_from, date
+        )
+        
+        if not selectedPriceDataStruct or len(selectedPriceDataStruct) < period + 1:
+            return -1
+        
+        # Calculate True Range for each period
+        true_ranges = []
+        for i in range(1, len(selectedPriceDataStruct)):
+            high = selectedPriceDataStruct[i]["high"]
+            low = selectedPriceDataStruct[i]["low"]
+            prev_close = selectedPriceDataStruct[i-1]["close"]
+            
+            tr = max(
+                high - low,
+                abs(high - prev_close),
+                abs(low - prev_close)
+            )
+            true_ranges.append(tr)
+        
+        if len(true_ranges) < period:
+            return -1
+        
+        # ATR is the average of true ranges
+        atr = np.mean(true_ranges[-period:])
+        return atr
+
+    def calculate_risk_reward_ratio(self, current_price, support_price, pressure_price):
+        """Calculate risk/reward ratio.
+        
+        Args:
+            current_price: Current stock price
+            support_price: Support level (stop loss)
+            pressure_price: Resistance level (target)
+            
+        Returns:
+            Risk/reward ratio or -1 if cannot calculate
+        """
+        try:
+            if not pressure_price or not support_price:
+                return -1
+            
+            reward = pressure_price - current_price
+            risk = current_price - support_price
+            
+            if risk <= 0:
+                return -1
+            
+            ratio = reward / risk
+            return ratio
+        except Exception:
+            return -1
+
     def is_swing_trade_entry(self):
         """Check for swing trade entry signal.
 
@@ -2411,6 +2535,9 @@ def calculate_common_buy_signal(ticker_obj, current_price, support_price, pressu
     6. Momentum Surge: Strong upward momentum with confirming volume
     7. Consolidation Breakout: Price breaks out from tight consolidation pattern
     8. RSI Oversold: RSI < 30 (oversold momentum indicator)
+    9. MACD Bullish Cross: MACD crosses above signal line (momentum shift)
+    10. Bullish Divergence: Price lower low but RSI higher low (reversal signal)
+    11. Good Risk/Reward: Ratio > 2:1 (favorable trade setup)
     
     Args:
         ticker_obj: cookFinancials object with price/volume data
@@ -2568,6 +2695,63 @@ def calculate_common_buy_signal(ticker_obj, current_price, support_price, pressu
         except Exception:
             pass
         
+        # 9. MACD Bullish Cross: MACD line crosses above signal line
+        try:
+            macd, signal, histogram = ticker_obj.get_macd(date)
+            if macd is not None and signal is not None:
+                # Check previous day
+                date_prev = date - dt.timedelta(days=3)
+                macd_prev, signal_prev, _ = ticker_obj.get_macd(date_prev)
+                
+                if macd_prev is not None and signal_prev is not None:
+                    # Bullish cross: was below, now above
+                    if macd_prev <= signal_prev and macd > signal:
+                        buy_reasons.append("MACD_BULLISH_CROSS")
+                    # Or already above and histogram increasing
+                    elif macd > signal and histogram > 0:
+                        buy_reasons.append("MACD_BULLISH")
+        except Exception:
+            pass
+        
+        # 10. Bullish RSI Divergence: Price makes lower low but RSI makes higher low
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 20:
+                    # Find recent low in prices
+                    recent_lows_idx = []
+                    for i in range(-20, -2):
+                        if (priceDataStruct[i]["low"] < priceDataStruct[i-1]["low"] and 
+                            priceDataStruct[i]["low"] < priceDataStruct[i+1]["low"]):
+                            recent_lows_idx.append(i)
+                    
+                    # Need at least 2 lows to check divergence
+                    if len(recent_lows_idx) >= 2:
+                        idx1, idx2 = recent_lows_idx[-2], recent_lows_idx[-1]
+                        price1 = priceDataStruct[idx1]["low"]
+                        price2 = priceDataStruct[idx2]["low"]
+                        
+                        # Get RSI at those points
+                        date1 = dt.datetime.strptime(priceDataStruct[idx1]["formatted_date"], "%Y-%m-%d").date()
+                        date2 = dt.datetime.strptime(priceDataStruct[idx2]["formatted_date"], "%Y-%m-%d").date()
+                        rsi1 = ticker_obj.get_rsi(date1)
+                        rsi2 = ticker_obj.get_rsi(date2)
+                        
+                        # Bullish divergence: price lower but RSI higher
+                        if rsi1 != -1 and rsi2 != -1:
+                            if price2 < price1 and rsi2 > rsi1:
+                                buy_reasons.append("BULLISH_DIVERGENCE")
+        except Exception:
+            pass
+        
+        # 11. Good Risk/Reward Ratio: > 2:1
+        try:
+            rr_ratio = ticker_obj.calculate_risk_reward_ratio(current_price, support_price, pressure_price)
+            if rr_ratio > 2.0:
+                buy_reasons.append("GOOD_RR_RATIO")
+        except Exception:
+            pass
+        
     except Exception as e:
         logger.warning("Error calculating common buy signal for %s: %s", 
                       ticker_obj.ticker if hasattr(ticker_obj, 'ticker') else 'unknown', e)
@@ -2591,8 +2775,10 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
     5. Below Key MAs: Price below both 50 MA and 200 MA (weakness)
     6. Volume Climax: High volume selloff (>2x average) with price drop >3%
     7. Failed Rally: Price rejected at resistance with volume decline
-    8. Trailing Stop: Price drops >8% from recent high
+    8. ATR Trailing Stop: Price drops >3x ATR from recent high (dynamic stop)
     9. RSI Overbought: RSI > 70 (overbought momentum indicator)
+    10. MACD Bearish Cross: MACD crosses below signal line (momentum shift)
+    11. Bearish Divergence: Price higher high but RSI lower high (reversal signal)
     
     Args:
         ticker_obj: cookFinancials object with price/volume data
@@ -2680,6 +2866,7 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
             pass
         
         # 8. Trailing Stop: >8% drop from recent high (20-day high)
+        # Replaced with ATR-based dynamic trailing stop
         try:
             if ticker_obj.priceData:
                 priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
@@ -2687,9 +2874,17 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
                     recent_highs = [priceDataStruct[i]["high"] for i in range(-20, 0)]
                     recent_high = max(recent_highs)
                     
-                    drop_pct = (current_price - recent_high) / recent_high * 100
-                    if drop_pct < -8:
-                        sell_reasons.append("TRAILING_STOP")
+                    # Use ATR-based stop (3x ATR from recent high)
+                    atr = ticker_obj.get_atr(date, period=14)
+                    if atr != -1:
+                        stop_distance = atr * 3
+                        if current_price < (recent_high - stop_distance):
+                            sell_reasons.append("ATR_TRAILING_STOP")
+                    else:
+                        # Fallback to fixed 8% if ATR unavailable
+                        drop_pct = (current_price - recent_high) / recent_high * 100
+                        if drop_pct < -8:
+                            sell_reasons.append("TRAILING_STOP")
         except Exception:
             pass
         
@@ -2698,6 +2893,55 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
             rsi = ticker_obj.get_rsi(date, period=14)
             if rsi != -1 and rsi > 70:
                 sell_reasons.append("RSI_OVERBOUGHT")
+        except Exception:
+            pass
+        
+        # 10. MACD Bearish Cross: MACD line crosses below signal line
+        try:
+            macd, signal, histogram = ticker_obj.get_macd(date)
+            if macd is not None and signal is not None:
+                # Check previous day
+                date_prev = date - dt.timedelta(days=3)
+                macd_prev, signal_prev, _ = ticker_obj.get_macd(date_prev)
+                
+                if macd_prev is not None and signal_prev is not None:
+                    # Bearish cross: was above, now below
+                    if macd_prev >= signal_prev and macd < signal:
+                        sell_reasons.append("MACD_BEARISH_CROSS")
+                    # Or already below and histogram decreasing
+                    elif macd < signal and histogram < 0:
+                        sell_reasons.append("MACD_BEARISH")
+        except Exception:
+            pass
+        
+        # 11. Bearish RSI Divergence: Price makes higher high but RSI makes lower high
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 20:
+                    # Find recent highs in prices
+                    recent_highs_idx = []
+                    for i in range(-20, -2):
+                        if (priceDataStruct[i]["high"] > priceDataStruct[i-1]["high"] and 
+                            priceDataStruct[i]["high"] > priceDataStruct[i+1]["high"]):
+                            recent_highs_idx.append(i)
+                    
+                    # Need at least 2 highs to check divergence
+                    if len(recent_highs_idx) >= 2:
+                        idx1, idx2 = recent_highs_idx[-2], recent_highs_idx[-1]
+                        price1 = priceDataStruct[idx1]["high"]
+                        price2 = priceDataStruct[idx2]["high"]
+                        
+                        # Get RSI at those points
+                        date1 = dt.datetime.strptime(priceDataStruct[idx1]["formatted_date"], "%Y-%m-%d").date()
+                        date2 = dt.datetime.strptime(priceDataStruct[idx2]["formatted_date"], "%Y-%m-%d").date()
+                        rsi1 = ticker_obj.get_rsi(date1)
+                        rsi2 = ticker_obj.get_rsi(date2)
+                        
+                        # Bearish divergence: price higher but RSI lower
+                        if rsi1 != -1 and rsi2 != -1:
+                            if price2 > price1 and rsi2 < rsi1:
+                                sell_reasons.append("BEARISH_DIVERGENCE")
         except Exception:
             pass
         

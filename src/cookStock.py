@@ -2037,6 +2037,7 @@ class batch_process:
                         isDeepCor,
                         isDemandDry,
                         isSwingEntry,
+                        ticker_obj=x,
                     )
                 finally:
                     # stop heartbeat and log per-ticker total elapsed
@@ -2168,9 +2169,134 @@ def setup_csv_file(filepath):
                 "Good Pivot",
                 "Deep Correction",
                 "Demand Dry",
+                "Sell Reasons",
             ]
         )
     logger.info("Created/reset CSV file: %s", filepath)
+
+
+def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_price,
+                         is_good_pivot, is_deep_correction, is_demand_dry):
+    """
+    Calculate comprehensive sell signal based on industry best practices.
+    
+    Sell triggers (any one condition = SELL):
+    1. Deep Correction: >50% drop from peak (breakdown)
+    2. Broken Support: Price below support without good pivot structure
+    3. Distribution Phase: Deep correction with continued selling pressure
+    4. Death Cross: 50 MA crosses below 200 MA (bearish trend reversal)
+    5. Below Key MAs: Price below both 50 MA and 200 MA (weakness)
+    6. Volume Climax: High volume selloff (>2x average) with price drop >3%
+    7. Failed Rally: Price rejected at resistance with volume decline
+    8. Trailing Stop: Price drops >8% from recent high
+    
+    Args:
+        ticker_obj: cookFinancials object with price/volume data
+        current_price: Current stock price
+        support_price: Support level
+        pressure_price: Resistance/pressure level
+        is_good_pivot: Whether stock is at good pivot point
+        is_deep_correction: Whether correction exceeds 50%
+        is_demand_dry: Whether selling pressure has decreased
+        
+    Returns:
+        tuple: (sell_signal 'YES'/'NO', list of sell reasons)
+    """
+    sell_reasons = []
+    
+    try:
+        date = dt.date.today()
+        
+        # 1. Deep Correction (>50% drop)
+        if is_deep_correction:
+            sell_reasons.append("DEEP_CORRECTION")
+        
+        # 2. Broken Support
+        if not is_good_pivot and current_price < support_price:
+            sell_reasons.append("BROKEN_SUPPORT")
+        
+        # 3. Distribution Phase
+        if is_deep_correction and not is_demand_dry:
+            sell_reasons.append("DISTRIBUTION")
+        
+        # 4. Death Cross: 50 MA < 200 MA
+        try:
+            ma_50 = ticker_obj.get_ma_50(date)
+            ma_200 = ticker_obj.get_ma_200(date)
+            if ma_50 != -1 and ma_200 != -1 and ma_50 < ma_200:
+                sell_reasons.append("DEATH_CROSS")
+        except Exception:
+            pass
+        
+        # 5. Below Key Moving Averages (both 50 and 200)
+        try:
+            ma_50 = ticker_obj.get_ma_50(date)
+            ma_200 = ticker_obj.get_ma_200(date)
+            if ma_50 != -1 and ma_200 != -1:
+                if current_price < ma_50 and current_price < ma_200:
+                    sell_reasons.append("BELOW_KEY_MAS")
+        except Exception:
+            pass
+        
+        # 6. Volume Climax: High volume (>2x avg) with price drop >3%
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 2:
+                    latest = priceDataStruct[-1]
+                    previous = priceDataStruct[-2]
+                    
+                    # Calculate price change
+                    price_change = (latest["close"] - previous["close"]) / previous["close"] * 100
+                    
+                    # Calculate average volume (last 20 days)
+                    if len(priceDataStruct) >= 20:
+                        recent_volumes = [priceDataStruct[i]["volume"] for i in range(-20, 0)]
+                        avg_volume = np.mean(recent_volumes)
+                        
+                        # Check for climax selloff
+                        if latest["volume"] > 2 * avg_volume and price_change < -3:
+                            sell_reasons.append("VOLUME_CLIMAX")
+        except Exception:
+            pass
+        
+        # 7. Failed Rally at Resistance (if near resistance with declining volume)
+        try:
+            if pressure_price and current_price >= 0.95 * pressure_price:
+                # Near resistance, check if volume is declining
+                if ticker_obj.priceData:
+                    priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                    if len(priceDataStruct) >= 10:
+                        recent_volumes = [priceDataStruct[i]["volume"] for i in range(-5, 0)]
+                        prior_volumes = [priceDataStruct[i]["volume"] for i in range(-10, -5)]
+                        
+                        if np.mean(recent_volumes) < np.mean(prior_volumes):
+                            sell_reasons.append("FAILED_RALLY")
+        except Exception:
+            pass
+        
+        # 8. Trailing Stop: >8% drop from recent high (20-day high)
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 20:
+                    recent_highs = [priceDataStruct[i]["high"] for i in range(-20, 0)]
+                    recent_high = max(recent_highs)
+                    
+                    drop_pct = (current_price - recent_high) / recent_high * 100
+                    if drop_pct < -8:
+                        sell_reasons.append("TRAILING_STOP")
+        except Exception:
+            pass
+        
+    except Exception as e:
+        logger.warning("Error calculating sell signal for %s: %s", 
+                      ticker_obj.ticker if hasattr(ticker_obj, 'ticker') else 'unknown', e)
+    
+    # Determine final sell signal
+    sell_signal = 'YES' if len(sell_reasons) > 0 else 'NO'
+    
+    return sell_signal, sell_reasons
 
 
 def append_to_csv(
@@ -2183,6 +2309,7 @@ def append_to_csv(
     is_deep_correction,
     is_demand_dry,
     is_swing_trade_entry,
+    ticker_obj=None,
 ):
     """Append a row to the CSV file."""
     import csv
@@ -2192,19 +2319,26 @@ def append_to_csv(
         "YES" if (is_good_pivot and not is_deep_correction and is_demand_dry) else "NO"
     )
 
-    # Calculate sell signal:
-    # - Deep correction (>50% drop) = breakdown
-    # - Price below support AND not good pivot = broken support
-    # - Demand NOT dry AND deep correction = distribution phase
-    sell_signal = (
-        "YES"
-        if (
-            is_deep_correction
-            or (not is_good_pivot and current_price < support_price)
-            or (is_deep_correction and not is_demand_dry)
+    # Calculate enhanced sell signal using industry best practices
+    if ticker_obj:
+        sell_signal, sell_reasons = calculate_sell_signal(
+            ticker_obj, current_price, support_price, pressure_price,
+            is_good_pivot, is_deep_correction, is_demand_dry
         )
-        else "NO"
-    )
+        # Join reasons for display
+        sell_details = ','.join(sell_reasons) if sell_reasons else ''
+    else:
+        # Fallback to original logic if ticker_obj not provided
+        sell_signal = (
+            "YES"
+            if (
+                is_deep_correction
+                or (not is_good_pivot and current_price < support_price)
+                or (is_deep_correction and not is_demand_dry)
+            )
+            else "NO"
+        )
+        sell_details = ''
 
     # Swing trade entry signal
     swing_entry = "YES" if is_swing_trade_entry else "NO"
@@ -2236,6 +2370,7 @@ def append_to_csv(
                 is_good_pivot,
                 is_deep_correction,
                 is_demand_dry,
+                sell_details,
             ]
         )
 

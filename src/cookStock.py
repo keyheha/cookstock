@@ -872,9 +872,11 @@ class cookFinancials:
         Criteria:
         - Current price is above 8 EMA (Exponential Moving Average)
         - Current price is above 200 SMA (Simple Moving Average)
+        - Average daily volume is over 500 million
+        - Market cap is over 1 billion
 
         Returns:
-            Tuple (bool, dict): (True/False, details dict with prices and EMAs)
+            Tuple (bool, dict): (True/False, details dict with prices, EMAs, and reasons)
         """
         try:
             date = dt.date.today()
@@ -908,27 +910,80 @@ class cookFinancials:
                 )
                 return False, {}
 
-            # Check conditions: price > 8 EMA AND price > 200 SMA
+            # Check average volume (last 20 days)
+            avg_volume = 0
+            volume_check = False
+            try:
+                if self.priceData:
+                    priceDataStruct = self.priceData[self.ticker]["prices"]
+                    if len(priceDataStruct) >= 20:
+                        recent_volumes = [priceDataStruct[i]["volume"] for i in range(-20, 0)]
+                        avg_volume = np.mean(recent_volumes)
+                        volume_check = avg_volume > 500_000_000  # 500 million
+                        logger.info(
+                            "is_swing_trade_entry %s: avg_volume=%.0f (>500M: %s)",
+                            self.ticker,
+                            avg_volume,
+                            volume_check,
+                        )
+            except Exception as e:
+                logger.warning("Failed to check volume for %s: %s", self.ticker, e)
+
+            # Check market cap (> 1 billion)
+            market_cap_B = self.get_marketCap_B()
+            market_cap_check = False
+            if market_cap_B != "na":
+                market_cap_check = market_cap_B > 1.0  # 1 billion
+                logger.info(
+                    "is_swing_trade_entry %s: market_cap=%.2fB (>1B: %s)",
+                    self.ticker,
+                    market_cap_B,
+                    market_cap_check,
+                )
+            else:
+                logger.warning(
+                    "is_swing_trade_entry: No market cap data for %s", self.ticker
+                )
+
+            # Check conditions: price > 8 EMA AND price > 200 SMA AND volume > 500M AND market cap > 1B
             is_above_ema8 = current_price > ema_8
             is_above_sma200 = current_price > sma_200
-            is_entry_signal = is_above_ema8 and is_above_sma200
+            is_entry_signal = is_above_ema8 and is_above_sma200 and volume_check and market_cap_check
+            
+            # Build reasons list
+            swing_reasons = []
+            if is_above_ema8:
+                swing_reasons.append("ABOVE_8EMA")
+            if is_above_sma200:
+                swing_reasons.append("ABOVE_200SMA")
+            if volume_check:
+                swing_reasons.append("VOL>500M")
+            if market_cap_check:
+                swing_reasons.append("MCAP>1B")
 
             details = {
                 "current_price": current_price,
                 "ema_8": ema_8,
                 "sma_200": sma_200,
+                "avg_volume": avg_volume,
+                "market_cap_B": market_cap_B,
                 "above_ema8": is_above_ema8,
                 "above_sma200": is_above_sma200,
+                "volume_check": volume_check,
+                "market_cap_check": market_cap_check,
                 "swing_entry_signal": is_entry_signal,
+                "swing_reasons": swing_reasons,
             }
 
             logger.info(
-                "Swing trade entry check for %s: signal=%s (price=%.2f, ema8=%.2f, sma200=%.2f)",
+                "Swing trade entry check for %s: signal=%s (price=%.2f, ema8=%.2f, sma200=%.2f, vol=%.0f, mcap=%.2fB)",
                 self.ticker,
                 is_entry_signal,
                 current_price,
                 ema_8,
                 sma_200,
+                avg_volume,
+                market_cap_B if market_cap_B != "na" else 0,
             )
 
             return is_entry_signal, details
@@ -2077,6 +2132,7 @@ class batch_process:
                         isDemandDry,
                         isSwingEntry,
                         ticker_obj=x,
+                        swing_details=swingDetails,
                     )
                 finally:
                     # stop heartbeat and log per-ticker total elapsed
@@ -2202,7 +2258,9 @@ def setup_csv_file(filepath):
                 "VCP Buy",
                 "Buy Reasons",
                 "Sell Signal",
+                "Sell Reasons",
                 "Swing Trade Entry",
+                "Swing Reasons",
                 "Current Price",
                 "Support Price",
                 "Pressure Price",
@@ -2210,7 +2268,6 @@ def setup_csv_file(filepath):
                 "Good Pivot",
                 "Deep Correction",
                 "Demand Dry",
-                "Sell Reasons",
                 "Ex-Dividend Date",
             ]
         )
@@ -2524,6 +2581,7 @@ def append_to_csv(
     is_swing_trade_entry,
     ticker_obj=None,
     ex_dividend_date='N/A',
+    swing_details=None,
 ):
     """Append a row to the CSV file."""
     import csv
@@ -2570,8 +2628,11 @@ def append_to_csv(
         )
         sell_details = ''
 
-    # Swing trade entry signal
+    # Swing trade entry signal with reasons
     swing_entry = "YES" if is_swing_trade_entry else "NO"
+    swing_reasons_str = ''
+    if swing_details and 'swing_reasons' in swing_details:
+        swing_reasons_str = ','.join(swing_details['swing_reasons'])
 
     # Calculate price to support as percentage: ((current_price - support_price) / support_price) * 100
     try:
@@ -2594,7 +2655,9 @@ def append_to_csv(
                 vcp_buy_signal,
                 buy_details,
                 sell_signal,
+                sell_details,
                 swing_entry,
+                swing_reasons_str,
                 current_price,
                 support_price,
                 pressure_price,
@@ -2602,7 +2665,6 @@ def append_to_csv(
                 is_good_pivot,
                 is_deep_correction,
                 is_demand_dry,
-                sell_details,
                 ex_dividend_date,
             ]
         )

@@ -2688,8 +2688,8 @@ def append_to_csv(
         )
         sell_details = ''
     
-    # Final Signal: (VCP Buy OR Buy Signal) AND NO Sell Signal
-    final_signal = "YES" if ((vcp_buy_signal == "YES" or buy_signal == "YES") and sell_signal == "NO") else "NO"
+    # Final Signal: BOTH VCP Buy AND Buy Signal must be YES, AND NO Sell Signal (stricter/safer)
+    final_signal = "YES" if ((vcp_buy_signal == "YES" and buy_signal == "YES") and sell_signal == "NO") else "NO"
 
     # Swing trade entry signal with reasons
     swing_entry = "YES" if is_swing_trade_entry else "NO"

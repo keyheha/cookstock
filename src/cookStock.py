@@ -2199,6 +2199,8 @@ def setup_csv_file(filepath):
             [
                 "Ticker",
                 "Buy Signal",
+                "VCP Buy",
+                "Buy Reasons",
                 "Sell Signal",
                 "Swing Trade Entry",
                 "Current Price",
@@ -2213,6 +2215,177 @@ def setup_csv_file(filepath):
             ]
         )
     logger.info("Created/reset CSV file: %s", filepath)
+
+
+def calculate_common_buy_signal(ticker_obj, current_price, support_price, pressure_price):
+    """
+    Calculate buy signal based on common industry technical analysis practices.
+    
+    Buy triggers (any one condition = BUY):
+    1. Golden Cross: 50 MA crosses above 200 MA (bullish trend reversal)
+    2. Bullish Trend: Price above both 50 MA and 200 MA, with both MAs trending up
+    3. Volume Breakout: Price breaks resistance with volume >1.5x average
+    4. Support Bounce: Price bounces from support with increased volume
+    5. Oversold Recovery: Price was oversold and is recovering with momentum
+    6. Momentum Surge: Strong upward momentum with confirming volume
+    7. Consolidation Breakout: Price breaks out from tight consolidation pattern
+    
+    Args:
+        ticker_obj: cookFinancials object with price/volume data
+        current_price: Current stock price
+        support_price: Support level
+        pressure_price: Resistance/pressure level
+        
+    Returns:
+        tuple: (buy_signal 'YES'/'NO', list of buy reasons)
+    """
+    buy_reasons = []
+    
+    try:
+        date = dt.date.today()
+        
+        # 1. Golden Cross: 50 MA crosses above 200 MA
+        try:
+            ma_50 = ticker_obj.get_ma_50(date)
+            ma_200 = ticker_obj.get_ma_200(date)
+            
+            if ma_50 != -1 and ma_200 != -1:
+                # Check if 50 MA recently crossed above 200 MA
+                if ma_50 > ma_200:
+                    # Verify it's a recent cross by checking previous days
+                    date_prev = date - dt.timedelta(days=5)
+                    ma_50_prev = ticker_obj.get_ma_50(date_prev)
+                    ma_200_prev = ticker_obj.get_ma_200(date_prev)
+                    
+                    if ma_50_prev != -1 and ma_200_prev != -1:
+                        if ma_50_prev <= ma_200_prev and ma_50 > ma_200:
+                            buy_reasons.append("GOLDEN_CROSS")
+        except Exception:
+            pass
+        
+        # 2. Bullish Trend: Price above both MAs with MAs trending up
+        try:
+            ma_50 = ticker_obj.get_ma_50(date)
+            ma_200 = ticker_obj.get_ma_200(date)
+            
+            if ma_50 != -1 and ma_200 != -1:
+                if current_price > ma_50 and current_price > ma_200:
+                    # Check if both MAs are trending up
+                    date_prev = date - dt.timedelta(days=10)
+                    ma_50_prev = ticker_obj.get_ma_50(date_prev)
+                    ma_200_prev = ticker_obj.get_ma_200(date_prev)
+                    
+                    if ma_50_prev != -1 and ma_200_prev != -1:
+                        if ma_50 > ma_50_prev and ma_200 > ma_200_prev:
+                            buy_reasons.append("BULLISH_TREND")
+        except Exception:
+            pass
+        
+        # 3. Volume Breakout: Breaking resistance with strong volume
+        try:
+            if pressure_price and current_price >= pressure_price:
+                if ticker_obj.priceData:
+                    priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                    if len(priceDataStruct) >= 20:
+                        latest_volume = priceDataStruct[-1]["volume"]
+                        recent_volumes = [priceDataStruct[i]["volume"] for i in range(-20, -1)]
+                        avg_volume = np.mean(recent_volumes)
+                        
+                        # Breakout with volume >1.5x average
+                        if latest_volume > 1.5 * avg_volume:
+                            buy_reasons.append("VOLUME_BREAKOUT")
+        except Exception:
+            pass
+        
+        # 4. Support Bounce: Bouncing from support with volume
+        try:
+            if support_price:
+                # Check if price is near support (within 2%) and bouncing up
+                if current_price >= support_price * 0.98 and current_price <= support_price * 1.05:
+                    if ticker_obj.priceData:
+                        priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                        if len(priceDataStruct) >= 10:
+                            # Check if price was below support recently and is now rising
+                            recent_prices = [priceDataStruct[i]["close"] for i in range(-5, 0)]
+                            if len(recent_prices) >= 3:
+                                # Check for upward momentum from support
+                                if recent_prices[-1] > recent_prices[-3]:
+                                    latest_volume = priceDataStruct[-1]["volume"]
+                                    recent_volumes = [priceDataStruct[i]["volume"] for i in range(-10, -1)]
+                                    avg_volume = np.mean(recent_volumes)
+                                    
+                                    if latest_volume > avg_volume:
+                                        buy_reasons.append("SUPPORT_BOUNCE")
+        except Exception:
+            pass
+        
+        # 5. Oversold Recovery: Strong recovery from recent lows
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 20:
+                    recent_lows = [priceDataStruct[i]["low"] for i in range(-20, 0)]
+                    recent_low = min(recent_lows)
+                    
+                    # If price recovered >5% from 20-day low with momentum
+                    recovery_pct = (current_price - recent_low) / recent_low * 100
+                    if recovery_pct > 5:
+                        # Check for upward momentum
+                        last_5_closes = [priceDataStruct[i]["close"] for i in range(-5, 0)]
+                        if len(last_5_closes) >= 3:
+                            if last_5_closes[-1] > last_5_closes[-3]:
+                                buy_reasons.append("OVERSOLD_RECOVERY")
+        except Exception:
+            pass
+        
+        # 6. Momentum Surge: Strong upward price momentum with volume
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 10:
+                    # Check last 5 days momentum
+                    last_5_closes = [priceDataStruct[i]["close"] for i in range(-5, 0)]
+                    last_5_volumes = [priceDataStruct[i]["volume"] for i in range(-5, 0)]
+                    prev_5_volumes = [priceDataStruct[i]["volume"] for i in range(-10, -5)]
+                    
+                    if len(last_5_closes) >= 3:
+                        # Calculate 5-day return
+                        price_change_pct = (last_5_closes[-1] - last_5_closes[0]) / last_5_closes[0] * 100
+                        
+                        # Strong momentum: >3% gain with increasing volume
+                        if price_change_pct > 3:
+                            if np.mean(last_5_volumes) > np.mean(prev_5_volumes):
+                                buy_reasons.append("MOMENTUM_SURGE")
+        except Exception:
+            pass
+        
+        # 7. Consolidation Breakout: Breaking from tight range
+        try:
+            if ticker_obj.priceData:
+                priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
+                if len(priceDataStruct) >= 20:
+                    # Check 10-20 day consolidation (tight range)
+                    consolidation_closes = [priceDataStruct[i]["close"] for i in range(-20, -2)]
+                    consolidation_high = max(consolidation_closes)
+                    consolidation_low = min(consolidation_closes)
+                    consolidation_range = (consolidation_high - consolidation_low) / consolidation_low * 100
+                    
+                    # Tight consolidation: <5% range
+                    if consolidation_range < 5:
+                        # Breaking out above consolidation high
+                        if current_price > consolidation_high * 1.02:
+                            buy_reasons.append("CONSOLIDATION_BREAKOUT")
+        except Exception:
+            pass
+        
+    except Exception as e:
+        logger.warning("Error calculating common buy signal for %s: %s", 
+                      ticker_obj.ticker if hasattr(ticker_obj, 'ticker') else 'unknown', e)
+    
+    # Determine final buy signal
+    buy_signal = 'YES' if len(buy_reasons) > 0 else 'NO'
+    
+    return buy_signal, buy_reasons
 
 
 def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_price,
@@ -2355,10 +2528,22 @@ def append_to_csv(
     """Append a row to the CSV file."""
     import csv
 
-    # Calculate buy signal: True if all conditions met
-    buy_signal = (
+    # Calculate VCP-based buy signal (original)
+    vcp_buy_signal = (
         "YES" if (is_good_pivot and not is_deep_correction and is_demand_dry) else "NO"
     )
+    
+    # Calculate common technical analysis buy signal
+    common_buy_signal = "NO"
+    buy_details = ""
+    if ticker_obj:
+        common_buy_signal, buy_reasons = calculate_common_buy_signal(
+            ticker_obj, current_price, support_price, pressure_price
+        )
+        buy_details = ','.join(buy_reasons) if buy_reasons else ''
+    
+    # Combined buy signal: YES if either VCP or common signals trigger
+    buy_signal = "YES" if (vcp_buy_signal == "YES" or common_buy_signal == "YES") else "NO"
 
     # Calculate enhanced sell signal using industry best practices
     if ticker_obj:
@@ -2406,6 +2591,8 @@ def append_to_csv(
             [
                 ticker,
                 buy_signal,
+                vcp_buy_signal,
+                buy_details,
                 sell_signal,
                 swing_entry,
                 current_price,

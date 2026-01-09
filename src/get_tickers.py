@@ -14,7 +14,7 @@ CUSTOM_TICKERS_US = [
     # Combined from personal watchlist, AI infrastructure, and major US companies
     'AAOI', 'AAPL', 'ABT', 'ABBV', 'ABNB', 'ACN', 'ADBE', 'ADSK', 'AI', 'ALAB',
     'AMAT', 'AMD', 'AMT', 'AMZN', 'ANET', 'APH', 'APLD', 'ARM', 'ASML', 'AVGO',
-    'BA', 'BAC', 'BASE', 'BE',
+    'BA', 'BAC', 'BE',
     'C', 'CEG', 'CIEN', 'CIFR', 'CLS', 'CMCSA', 'COHR', 'COIN', 'COST', 'CRDO',
     'CRM', 'CRWD', 'CRWV', 'CSCO', 'CVX',
     'DDOG', 'DELL', 'DIS', 'DOCN', 'DOCU', 'DUOL', 'DUK',

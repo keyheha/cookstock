@@ -573,6 +573,45 @@ class cookFinancials:
                 self.summaryData = {self.ticker: {}}
         return self.summaryData
 
+    def get_ex_dividend_date(self):
+        """Get the next ex-dividend date for the stock.
+        
+        Returns:
+            str: Ex-dividend date in YYYY-MM-DD format, or 'N/A' if not available
+        """
+        try:
+            if not self.yf_ticker:
+                return 'N/A'
+            
+            # Get calendar data which includes ex-dividend date
+            calendar = self.yf_ticker.calendar
+            if calendar is not None and 'Ex-Dividend Date' in calendar:
+                ex_div_date = calendar['Ex-Dividend Date']
+                if ex_div_date:
+                    # Convert to string format if it's a datetime object
+                    if hasattr(ex_div_date, 'strftime'):
+                        return ex_div_date.strftime('%Y-%m-%d')
+                    return str(ex_div_date)
+            
+            # Try getting from info as fallback
+            if not self.summaryData:
+                self.get_summary_data()
+            
+            ex_div_date = self.summaryData.get(self.ticker, {}).get('exDividendDate')
+            if ex_div_date:
+                # Convert timestamp to date if necessary
+                if isinstance(ex_div_date, (int, float)):
+                    date_obj = dt.datetime.fromtimestamp(ex_div_date)
+                    return date_obj.strftime('%Y-%m-%d')
+                elif hasattr(ex_div_date, 'strftime'):
+                    return ex_div_date.strftime('%Y-%m-%d')
+                return str(ex_div_date)
+            
+            return 'N/A'
+        except Exception as e:
+            logger.debug("Failed to get ex-dividend date for %s: %s", self.ticker, e)
+            return 'N/A'
+
     def get_pricetoSales(self):
         if not (self.summaryData):
             self.summaryData = self.get_summary_data()
@@ -2170,6 +2209,7 @@ def setup_csv_file(filepath):
                 "Deep Correction",
                 "Demand Dry",
                 "Sell Reasons",
+                "Ex-Dividend Date",
             ]
         )
     logger.info("Created/reset CSV file: %s", filepath)
@@ -2310,6 +2350,7 @@ def append_to_csv(
     is_demand_dry,
     is_swing_trade_entry,
     ticker_obj=None,
+    ex_dividend_date='N/A',
 ):
     """Append a row to the CSV file."""
     import csv
@@ -2327,6 +2368,10 @@ def append_to_csv(
         )
         # Join reasons for display
         sell_details = ','.join(sell_reasons) if sell_reasons else ''
+        
+        # Get ex-dividend date if not provided
+        if ex_dividend_date == 'N/A':
+            ex_dividend_date = ticker_obj.get_ex_dividend_date()
     else:
         # Fallback to original logic if ticker_obj not provided
         sell_signal = (
@@ -2371,6 +2416,7 @@ def append_to_csv(
                 is_deep_correction,
                 is_demand_dry,
                 sell_details,
+                ex_dividend_date,
             ]
         )
 

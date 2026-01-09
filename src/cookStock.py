@@ -1760,8 +1760,21 @@ class batch_process:
             "UK": os.path.join(self.resultsPath, "charts_UK"),
             "HK": os.path.join(self.resultsPath, "charts_HK"),
         }
+        
+        # Determine which markets are in the ticker list
+        markets_in_use = set()
+        for ticker in self.tickers:
+            markets_in_use.add(get_ticker_market(ticker))
+        logger.info("Markets being processed: %s", markets_in_use)
+        
+        # Only reset CSV files for markets being processed
         for market, csv_file in self.csv_files.items():
-            setup_csv_file(csv_file)
+            if market in markets_in_use:
+                setup_csv_file(csv_file)  # Reset file with new headers
+                logger.info("Reset CSV file for active market: %s", market)
+            else:
+                setup_csv_file_if_not_exists(csv_file)  # Only create if doesn't exist
+        
         for market, img_folder in self.image_folders.items():
             os.makedirs(img_folder, exist_ok=True)
             logger.info("Created image folder: %s", img_folder)
@@ -2239,6 +2252,41 @@ def setup_result_file(basePath, file):
     filepath = os.path.join(basePath, file)
     save_json(filepath, {"data": []})
     return filepath
+
+
+def setup_csv_file_if_not_exists(filepath):
+    """Create CSV file with headers only if it doesn't already exist."""
+    import csv
+
+    if not os.path.exists(filepath):
+        basedir = os.path.dirname(filepath)
+        if not os.path.exists(basedir):
+            os.makedirs(basedir)
+        with open(filepath, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "Ticker",
+                    "Buy Signal",
+                    "VCP Buy",
+                    "Buy Reasons",
+                    "Sell Signal",
+                    "Sell Reasons",
+                    "Swing Trade Entry",
+                    "Swing Reasons",
+                    "Current Price",
+                    "Support Price",
+                    "Pressure Price",
+                    "Price to Support %",
+                    "Good Pivot",
+                    "Deep Correction",
+                    "Demand Dry",
+                    "Ex-Dividend Date",
+                ]
+            )
+        logger.info("Created CSV file: %s", filepath)
+    else:
+        logger.info("CSV file already exists, preserving: %s", filepath)
 
 
 def setup_csv_file(filepath):

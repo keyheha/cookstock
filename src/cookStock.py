@@ -2277,8 +2277,9 @@ def setup_csv_file_if_not_exists(filepath):
             writer.writerow(
                 [
                     "Ticker",
-                    "Buy Signal",
+                    "Final Signal",
                     "VCP Buy",
+                    "Buy Signal",
                     "Buy Reasons",
                     "Sell Signal",
                     "Sell Reasons",
@@ -2312,8 +2313,9 @@ def setup_csv_file(filepath):
         writer.writerow(
             [
                 "Ticker",
-                "Buy Signal",
+                "Final Signal",
                 "VCP Buy",
+                "Buy Signal",
                 "Buy Reasons",
                 "Sell Signal",
                 "Sell Reasons",
@@ -2644,12 +2646,12 @@ def append_to_csv(
     """Append a row to the CSV file."""
     import csv
 
-    # Calculate VCP-based buy signal (original)
+    # Calculate VCP-based buy signal (standalone - strict Minervini)
     vcp_buy_signal = (
         "YES" if (is_good_pivot and not is_deep_correction and is_demand_dry) else "NO"
     )
     
-    # Calculate common technical analysis buy signal
+    # Calculate common technical analysis buy signal (NOT combined with VCP)
     common_buy_signal = "NO"
     buy_details = ""
     if ticker_obj:
@@ -2658,8 +2660,8 @@ def append_to_csv(
         )
         buy_details = ','.join(buy_reasons) if buy_reasons else ''
     
-    # Combined buy signal: YES if either VCP or common signals trigger
-    buy_signal = "YES" if (vcp_buy_signal == "YES" or common_buy_signal == "YES") else "NO"
+    # Buy Signal = only common signals (VCP is separate)
+    buy_signal = common_buy_signal
 
     # Calculate enhanced sell signal using industry best practices
     if ticker_obj:
@@ -2685,6 +2687,9 @@ def append_to_csv(
             else "NO"
         )
         sell_details = ''
+    
+    # Final Signal: (VCP Buy OR Buy Signal) AND NO Sell Signal
+    final_signal = "YES" if ((vcp_buy_signal == "YES" or buy_signal == "YES") and sell_signal == "NO") else "NO"
 
     # Swing trade entry signal with reasons
     swing_entry = "YES" if is_swing_trade_entry else "NO"
@@ -2709,8 +2714,9 @@ def append_to_csv(
         writer.writerow(
             [
                 ticker,
-                buy_signal,
+                final_signal,
                 vcp_buy_signal,
+                buy_signal,
                 buy_details,
                 sell_signal,
                 sell_details,
@@ -2744,7 +2750,7 @@ def get_ticker_market(ticker):
 
 
 def sort_csv_by_buy_signal(filepath):
-    """Sort CSV file by Buy Signal (YES first), then by Price to Support % (smallest percentage first), then Sell Signal (YES last)."""
+    """Sort CSV file by Final Signal (YES first), then VCP Buy, then Buy Signal, then Price to Support %."""
     import csv
 
     try:
@@ -2758,17 +2764,19 @@ def sort_csv_by_buy_signal(filepath):
         if not rows:
             return
 
-        # Sort by: Buy Signal (YES first), then Price to Support % (smallest percentage first for buy signals), then Sell Signal (NO first)
-        # Using tuple sort: (not buy_yes, price_to_support_pct if buy_yes else large_number, sell_yes)
+        # Sort by: Final Signal (YES first), VCP Buy (YES first), Buy Signal (YES first), Price to Support % (smallest first)
+        # Column indices: Ticker=0, Final Signal=1, VCP Buy=2, Buy Signal=3, ..., Price to Support %=12
         def sort_key(row):
-            buy_yes = row[1] == "YES"
-            sell_yes = row[2] == "YES"
+            final_signal_yes = row[1] == "YES"
+            vcp_buy_yes = row[2] == "YES"
+            buy_yes = row[3] == "YES"
+            sell_yes = row[5] == "YES"
             try:
-                # Price to Support % is at index 7 (after Pressure Price)
-                price_to_support_pct = float(row[7]) if buy_yes else float("inf")
+                # Price to Support % is at index 12
+                price_to_support_pct = float(row[12]) if (final_signal_yes or vcp_buy_yes or buy_yes) else float("inf")
             except (ValueError, IndexError):
                 price_to_support_pct = float("inf")
-            return (not buy_yes, price_to_support_pct, sell_yes)
+            return (not final_signal_yes, not vcp_buy_yes, not buy_yes, price_to_support_pct, sell_yes)
 
         rows.sort(key=sort_key)
 

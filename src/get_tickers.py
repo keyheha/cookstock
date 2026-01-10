@@ -65,7 +65,7 @@ CUSTOM_TICKERS_UK = [
     'SMT.L', 'SN.L', 'SPX.L', 'SSE.L', 'STAN.L', 'STJ.L', 'SVT.L', 'SXS.L',
     'TSCO.L', 'TW.L',
     'UKW.L', 'ULVR.L', 'UU.L',
-    'VOD.L',
+    'VOD.L', 'VUKE.L', 'VUSA.L',
     'WEIR.L', 'WPP.L', 'WTB.L'
 ]
 

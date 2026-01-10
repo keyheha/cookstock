@@ -812,6 +812,102 @@ class cookFinancials:
         date_from = date - dt.timedelta(days=150)
         date_to = date
         return self.get_ma(date_from, date_to)
+    
+    def get_ma_100(self, date):
+        """Get 100-day simple moving average."""
+        date_from = date - dt.timedelta(days=100)
+        date_to = date
+        return self.get_ma(date_from, date_to)
+    
+    def check_double_seven_entry(self, date=None, lookback_days=7):
+        """Check if price is at the lowest point in the lookback period (Double 7's entry).
+        
+        Args:
+            date: Date to check (default: today)
+            lookback_days: Number of days to look back (7 for US/UK, 10 for HK)
+            
+        Returns:
+            bool: True if today's close is the lowest in the lookback period
+        """
+        if date is None:
+            date = dt.date.today()
+        
+        try:
+            if not self.priceData:
+                start_date = date - dt.timedelta(days=365)
+                start_ts = _to_epoch_seconds(start_date)
+                end_ts = _to_epoch_seconds(date)
+                self.priceData = self.get_historical_price_data(start_ts, end_ts, "daily")
+            
+            # Get price data for lookback period
+            date_from = date - dt.timedelta(days=lookback_days + 5)  # Extra buffer
+            priceDataStruct = self.priceData[self.ticker]["prices"]
+            selectedPriceData = self.get_price_from_buffer_start_end(
+                priceDataStruct, date_from, date
+            )
+            
+            if not selectedPriceData or len(selectedPriceData) < lookback_days:
+                return False
+            
+            # Get the last N trading days (actual data points)
+            recent_prices = selectedPriceData[-lookback_days:]
+            
+            # Check if the most recent close is the lowest
+            closes = [p["close"] for p in recent_prices if p.get("close")]
+            if len(closes) < lookback_days:
+                return False
+            
+            current_close = closes[-1]
+            return current_close == min(closes)
+            
+        except Exception as e:
+            logger.warning("check_double_seven_entry failed for %s: %s", self.ticker, e)
+            return False
+    
+    def check_double_seven_exit(self, date=None, lookback_days=7):
+        """Check if price is at the highest point in the lookback period (Double 7's exit).
+        
+        Args:
+            date: Date to check (default: today)
+            lookback_days: Number of days to look back (7 for US, 2 for UK, 3 for HK)
+            
+        Returns:
+            bool: True if today's close is the highest in the lookback period
+        """
+        if date is None:
+            date = dt.date.today()
+        
+        try:
+            if not self.priceData:
+                start_date = date - dt.timedelta(days=365)
+                start_ts = _to_epoch_seconds(start_date)
+                end_ts = _to_epoch_seconds(date)
+                self.priceData = self.get_historical_price_data(start_ts, end_ts, "daily")
+            
+            # Get price data for lookback period
+            date_from = date - dt.timedelta(days=lookback_days + 5)  # Extra buffer
+            priceDataStruct = self.priceData[self.ticker]["prices"]
+            selectedPriceData = self.get_price_from_buffer_start_end(
+                priceDataStruct, date_from, date
+            )
+            
+            if not selectedPriceData or len(selectedPriceData) < lookback_days:
+                return False
+            
+            # Get the last N trading days
+            recent_prices = selectedPriceData[-lookback_days:]
+            
+            # Check if the most recent close is the highest
+            closes = [p["close"] for p in recent_prices if p.get("close")]
+            if len(closes) < lookback_days:
+                return False
+            
+            current_close = closes[-1]
+            return current_close == max(closes)
+            
+        except Exception as e:
+            logger.warning("check_double_seven_exit failed for %s: %s", self.ticker, e)
+            return False
 
     def get_ema(self, date, period):
         """Calculate Exponential Moving Average (EMA) for a given period.
@@ -2452,6 +2548,76 @@ def setup_result_file(basePath, file):
     return filepath
 
 
+def calculate_double_seven_signals(ticker_obj, market):
+    """Calculate Double 7's Strategy signals based on market-specific parameters.
+    
+    Strategy:
+    - Trend Filter: Price must be above SMA (200 for US, 150 for UK, 100 for HK)
+    - Entry Signal: Price closes at N-day low (7 for US/UK, 10 for HK)
+    - Exit Signal: Price closes at N-day high (7 for US, 2 for UK, 3 for HK)
+    
+    Args:
+        ticker_obj: cookFinancials object
+        market: 'US', 'UK', or 'HK'
+        
+    Returns:
+        tuple: (d7_entry 'YES'/'NO', d7_exit 'YES'/'NO')
+    """
+    try:
+        date = dt.date.today()
+        
+        # Market-specific parameters
+        params = {
+            'US': {'sma_period': 200, 'entry_days': 7, 'exit_days': 7},
+            'UK': {'sma_period': 150, 'entry_days': 7, 'exit_days': 2},
+            'HK': {'sma_period': 100, 'entry_days': 10, 'exit_days': 3}
+        }
+        
+        config = params.get(market, params['US'])
+        
+        # Get current price
+        if not ticker_obj.current_stickerPrice:
+            ticker_obj.current_stickerPrice = ticker_obj.get_current_price()
+        current_price = ticker_obj.current_stickerPrice
+        
+        if not current_price:
+            return 'NO', 'NO'
+        
+        # Get appropriate SMA based on market
+        if config['sma_period'] == 200:
+            sma = ticker_obj.get_ma_200(date)
+        elif config['sma_period'] == 150:
+            sma = ticker_obj.get_ma_150(date)
+        else:  # 100
+            sma = ticker_obj.get_ma_100(date)
+        
+        # Check if price is above SMA (trend filter)
+        if sma == -1 or current_price <= sma:
+            return 'NO', 'NO'
+        
+        # Check entry signal (N-day low)
+        is_entry = ticker_obj.check_double_seven_entry(date, config['entry_days'])
+        
+        # Check exit signal (N-day high)
+        is_exit = ticker_obj.check_double_seven_exit(date, config['exit_days'])
+        
+        entry_signal = 'YES' if is_entry else 'NO'
+        exit_signal = 'YES' if is_exit else 'NO'
+        
+        logger.info(
+            "Double 7's for %s (%s): Entry=%s (SMA%d=%.2f, %d-day low), Exit=%s (%d-day high)",
+            ticker_obj.ticker, market, entry_signal, config['sma_period'], 
+            sma, config['entry_days'], exit_signal, config['exit_days']
+        )
+        
+        return entry_signal, exit_signal
+        
+    except Exception as e:
+        logger.warning("calculate_double_seven_signals failed for %s: %s", 
+                      ticker_obj.ticker if hasattr(ticker_obj, 'ticker') else 'unknown', e)
+        return 'NO', 'NO'
+
+
 def setup_csv_file_if_not_exists(filepath):
     """Create CSV file with headers only if it doesn't already exist."""
     import csv
@@ -2473,6 +2639,8 @@ def setup_csv_file_if_not_exists(filepath):
                     "Sell Reasons",
                     "Swing Trade Entry",
                     "Swing Reasons",
+                    "Double 7's Entry",
+                    "Double 7's Exit",
                     "Current Price",
                     "Support Price",
                     "Pressure Price",
@@ -2509,6 +2677,8 @@ def setup_csv_file(filepath):
                 "Sell Reasons",
                 "Swing Trade Entry",
                 "Swing Reasons",
+                "Double 7's Entry",
+                "Double 7's Exit",
                 "Current Price",
                 "Support Price",
                 "Pressure Price",
@@ -3023,6 +3193,13 @@ def append_to_csv(
     if swing_details and 'swing_reasons' in swing_details:
         swing_reasons_str = ','.join(swing_details['swing_reasons'])
 
+    # Calculate Double 7's Strategy signals (market-specific)
+    d7_entry = 'NO'
+    d7_exit = 'NO'
+    if ticker_obj:
+        market = get_ticker_market(ticker)
+        d7_entry, d7_exit = calculate_double_seven_signals(ticker_obj, market)
+
     # Calculate price to support as percentage: ((current_price - support_price) / support_price) * 100
     try:
         support_val = float(support_price)
@@ -3048,6 +3225,8 @@ def append_to_csv(
                 sell_details,
                 swing_entry,
                 swing_reasons_str,
+                d7_entry,
+                d7_exit,
                 current_price,
                 support_price,
                 pressure_price,

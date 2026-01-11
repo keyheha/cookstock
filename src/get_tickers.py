@@ -33,7 +33,7 @@ CUSTOM_TICKERS_US = [
     'QCOM',
     'RBLX', 'RKLB', 'ROKU', 'RTX', 'RKT',
     'SANM', 'SBUX', 'SHOP', 'SMTC', 'SNAP', 'SNDK', 'SNOW', 'SPG', 'SPGI', 'SPOT',
-    'SQ', 'STX', 'SMR',
+    'SQ', 'STX', 'SMR', 'SOXX',
     'TEAM', 'TEM', 'TGT', 'TLN', 'TMO', 'TSLA', 'TSM', 'TTD', 'TWLO', 'TXN',
     'UBER', 'UDMY', 'UNH', 'UNP', 'UPS', 'UPWK',
     'V', 'VEEV', 'VMEO', 'VRT', 'VST', 'VZ',

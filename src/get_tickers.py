@@ -42,31 +42,47 @@ CUSTOM_TICKERS_US = [
 ]
 
 CUSTOM_TICKERS_UK = [
-    # Combined from AI Infrastructure, FTSE 100, and custom UK tickers
-    'AAF.L', 'AAL.L', 'ABF.L', 'ADM.L', 'AHT.L', 'ANTO.L', 'AUTO.L', 'AV.L', 'AZN.L',
-    'BA.L', 'BAB.L', 'BARC.L', 'BATS.L', 'BBOX.L', 'BDEV.L', 'BEZ.L', 'BHP.L',
-    'BLND.L', 'BNZL.L', 'BP.L', 'BRBY.L', 'BT.A.L', 'BWY.L', 'BYIT.L',
-    'CCH.L', 'CKN.L', 'CNA.L', 'CORD.L', 'CPG.L', 'CRDA.L', 'CRH.L',
-    'DCC.L', 'DGE.L', 'DIG9.L', 'DPLM.L', 'DRX.L',
-    'EXPN.L',
-    'FERG.L', 'FLTR.L', 'FRES.L',
-    'GAW.L', 'GLEN.L', 'GSK.L',
-    'HIK.L', 'HL.L', 'HLMA.L', 'HSBA.L', 'HWDN.L', 'HTG.L',
-    'IAG.L', 'ICG.L', 'IHG.L', 'IMB.L', 'IMI.L', 'INF.L', 'III.L', 'ITRK.L',
-    'JD.L', 'JET.L', 'JMAT.L',
-    'KGF.L',
-    'LAND.L', 'LGEN.L', 'LLOY.L', 'LSEG.L',
-    'MKS.L', 'MNG.L', 'MNDI.L', 'MRO.L', 'MTC.L',
-    'NG.L', 'NWG.L', 'NXT.L',
-    'OCDO.L', 'OXIG.L',
-    'PHNX.L', 'PNN.L', 'POLY.L', 'PRU.L', 'PSH.L', 'PSN.L', 'PSON.L',
-    'REL.L', 'REN.L', 'RIO.L', 'RKT.L', 'RMV.L', 'RR.L', 'RSA.L', 'RTO.L',
-    'SBRY.L', 'SDR.L', 'SGE.L', 'SGRO.L', 'SHEL.L', 'SLA.L', 'SMDS.L', 'SMIN.L',
-    'SMT.L', 'SN.L', 'SPX.L', 'SSE.L', 'STAN.L', 'STJ.L', 'SVT.L', 'SXS.L',
-    'TSCO.L', 'TW.L',
-    'UKW.L', 'ULVR.L', 'UU.L',
-    'VOD.L', 'VUKE.L', 'VUSA.L',
-    'WEIR.L', 'WPP.L', 'WTB.L'
+    # --- FTSE 100 ---
+    'III.L', 'ADM.L', 'AAF.L', 'ALW.L', 'AAL.L', 'ANTO.L', 'AHT.L', 'ABF.L', 'AZN.L', 'AUTO.L',
+    'AV.L', 'BAB.L', 'BA.L', 'BARC.L', 'BTRW.L', 'BEZ.L', 'BKG.L', 'BP.L', 'BATS.L', 'BLND.L',
+    'BT-A.L', 'BNZL.L', 'BRBY.L', 'CNA.L', 'CCEP.L', 'CCH.L', 'CPG.L', 'CTEC.L', 'CRDA.L', 'DCC.L',
+    'DGE.L', 'DPLM.L', 'EZJ.L', 'EDV.L', 'ENT.L', 'EXPN.L', 'FCIT.L', 'FRES.L', 'GAW.L', 'GLEN.L',
+    'GSK.L', 'HLN.L', 'HLMA.L', 'HIK.L', 'HSX.L', 'HWDN.L', 'HSBA.L', 'ICG.L', 'IHG.L', 'IMB.L',
+    'IMI.L', 'INF.L', 'IAG.L', 'ITRK.L', 'JD.L', 'KGF.L', 'LAND.L', 'LGEN.L', 'LLOY.L', 'LSEG.L',
+    'MKS.L', 'MRO.L', 'MNDI.L', 'NG.L', 'NWG.L', 'NXT.L', 'OCDO.L', 'PSON.L', 'PSH.L', 'PHNX.L',
+    'PRU.L', 'RKT.L', 'REL.L', 'REN.L', 'RIO.L', 'RR.L', 'RS1.L', 'SBRY.L', 'SGE.L', 'SRE.L',
+    'SGRO.L', 'SHEL.L', 'SMDS.L', 'SMIN.L', 'SN.L', 'SPX.L', 'SSE.L', 'STAN.L', 'STJ.L', 'SVT.L',
+    'TSCO.L', 'ULVR.L', 'UU.L', 'VTYV.L', 'VOD.L', 'WEIR.L', 'WTB.L', 'WPP.L',
+
+    # --- FTSE 250 (Full List Selection) ---
+    '3IN.L', 'FOUR.L', 'ABDN.L', 'ASL.L', 'AAS.L', 'ALFA.L', 'ATT.L', 'AEP.L', 'AO.L', 'APN.L',
+    'ASHM.L', 'AIE.L', 'AML.L', 'ATYM.L', 'AGT.L', 'AVON.L', 'BME.L', 'BGF.L', 'BBY.L', 'BCG.L',
+    'BNKR.L', 'BAG.L', 'AJB.L', 'BWY.L', 'BHMG.L', 'BYG.L', 'BPCR.L', 'BRGE.L', 'BRSC.L', 'THRG.L',
+    'BRWM.L', 'BSIF.L', 'BOY.L', 'BREE.L', 'BPT.L', 'BUT.L', 'BYIT.L', 'CCR.L', 'CLDN.L', 'CGT.L',
+    'CCL.L', 'CWR.L', 'CHG.L', 'CSN.L', 'CHRY.L', 'CTY.L', 'CKN.L', 'CLIG.L', 'CLI.L', 'COA.L',
+    'CCC.L', 'CURY.L', 'DARK.L', 'DNL.L', 'DPH.L', 'DLN.L', 'DIG9.L', 'DOM.L', 'DRX.L', 'DOW.L',
+    'DWW.L', 'ECM.L', 'EDIN.L', 'EMG.L', 'ENOG.L', 'EPIC.L', 'ESNT.L', 'EUO.L', 'EWI.L', 'FGP.L',
+    'FDM.L', 'FSG.L', 'FGT.L', 'FRCL.L', 'GCP.L', 'GFT.L', 'GNS.L', 'GPEG.L', 'GRG.L', 'HBR.L',
+    'HAYS.L', 'HICL.L', 'HOCM.L', 'HRI.L', 'IBST.L', 'IGG.L', 'IEM.L', 'IMCP.L', 'INCH.L', 'INVP.L',
+    'IP.L', 'IWG.L', 'ITV.L', 'JDW.L', 'JMAT.L', 'JLEN.L', 'JGGI.L', 'JGI.L', 'JMG.L', 'JUP.L',
+    'KIE.L', 'LRE.L', 'LTI.L', 'MCG.L', 'MAB.L', 'MTO.L', 'MGNS.L', 'NESV.L', 'N91.L', 'OSB.L',
+    'OXIG.L', 'PAGE.L', 'PNN.L', 'PFD.L', 'PHP.L', 'PNL.L', 'QLT.L', 'QQ.L', 'RAT.L', 'RCP.L',
+    'RDW.L', 'RRE.L', 'RCH.L', 'RNK.L', 'RWI.L', 'SAFE.L', 'SVS.L', 'SDRL.L', 'SRP.L', 'SHB.L',
+    'SHI.L', 'SMWH.L', 'SOFT.L', 'SONC.L', 'SREI.L', 'SSP.L', 'STCK.L', 'SXS.L', 'TATE.L',
+    'TBCG.L', 'TPK.L', 'TIG.L', 'TRY.L', 'UKW.L', 'VCTX.L', 'VSVS.L', 'VNET.L', 'WIZZ.L', 'WOSG.L',
+
+    # --- UK AI & DIGITAL INFRASTRUCTURE (Specialized) ---
+    'BYIT.L',  # Bytes Technology - Cloud & AI licensing infrastructure
+    'CCC.L',  # Computacenter - Enterprise IT & AI hardware rollout
+    'SGRO.L',  # Segro - Leading Data Center REIT (Physical sites)
+    'AHT.L',  # Ashtead - Power & cooling for data center builds
+    'RR.L',  # Rolls-Royce - SMR (Small Modular Reactors) for AI energy needs
+    'KAI.L',  # Kainos - Leading AI implementation services
+    'OXIG.L',  # Oxford Instruments - Semiconductors/Nanotech research tools
+    'RSW.L',  # Renishaw - High-precision engineering for AI hardware/robotics
+    'CWR.L',  # Ceres Power - Fuel cell tech for off-grid data center power
+    'SGE.L',  # Sage Group - Enterprise AI workflow infrastructure
+    'FTC.L'  # Filtronic - High-frequency comms infrastructure for AI clusters
 ]
 
 CUSTOM_TICKERS_HK = [

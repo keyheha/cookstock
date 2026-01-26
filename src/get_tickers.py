@@ -74,7 +74,7 @@ CUSTOM_TICKERS_UK = [
     # --- UK AI & DIGITAL INFRASTRUCTURE (Specialized) ---
     'BYIT.L',  # Bytes Technology - Cloud & AI licensing infrastructure
     'CCC.L',  # Computacenter - Enterprise IT & AI hardware rollout
-    'SGRO.L',  # Segro - Leading Data Center REIT (Physical sites)
+    # 'SGRO.L', # Segro - Leading Data Center REIT (Physical sites)
     'AHT.L',  # Ashtead - Power & cooling for data center builds
     'RR.L',  # Rolls-Royce - SMR (Small Modular Reactors) for AI energy needs
     'KAI.L',  # Kainos - Leading AI implementation services
@@ -83,6 +83,10 @@ CUSTOM_TICKERS_UK = [
     'CWR.L',  # Ceres Power - Fuel cell tech for off-grid data center power
     'SGE.L',  # Sage Group - Enterprise AI workflow infrastructure
     'FTC.L'  # Filtronic - High-frequency comms infrastructure for AI clusters
+
+    # RIO.L, GLEN.L, AAL.L, ANTO.L, SHEL.L, BP.L,
+    # EDV.L, CENT.L, KLR.L, FXPO.L, 
+    # CNA.L, HBR.L, WG.L, DEX.L, ITH.L
 ]
 
 CUSTOM_TICKERS_HK = [
@@ -105,6 +109,7 @@ CUSTOM_TICKERS_HK = [
     '9660.HK',  # Horizon Robotics
     '9888.HK',  # Baidu
     '9988.HK',  # Alibaba Group
+    '2400.HK',  # XD
 ]
 
 # headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df

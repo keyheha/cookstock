@@ -85,8 +85,8 @@ CUSTOM_TICKERS_UK = [
     'FTC.L'  # Filtronic - High-frequency comms infrastructure for AI clusters
 
     # RIO.L, GLEN.L, AAL.L, ANTO.L, SHEL.L, BP.L,
-    # EDV.L, CENT.L, KLR.L, FXPO.L, 
-    # CNA.L, HBR.L, WG.L, DEX.L, ITH.L
+    # EDV.L, KLR.L, FXPO.L,
+    # CNA.L, HBR.L, WG.L, ITH.L
 ]
 
 CUSTOM_TICKERS_HK = [

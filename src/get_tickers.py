@@ -72,16 +72,16 @@ CUSTOM_TICKERS_UK = [
     'TBCG.L', 'TPK.L', 'TIG.L', 'TRY.L', 'UKW.L', 'VCTX.L', 'VSVS.L', 'VNET.L', 'WIZZ.L', 'WOSG.L',
 
     # --- UK AI & DIGITAL INFRASTRUCTURE (Specialized) ---
-    'BYIT.L',  # Bytes Technology - Cloud & AI licensing infrastructure
-    'CCC.L',  # Computacenter - Enterprise IT & AI hardware rollout
+    # 'BYIT.L',  # Bytes Technology - Cloud & AI licensing infrastructure
+    # 'CCC.L',  # Computacenter - Enterprise IT & AI hardware rollout
     # 'SGRO.L', # Segro - Leading Data Center REIT (Physical sites)
-    'AHT.L',  # Ashtead - Power & cooling for data center builds
-    'RR.L',  # Rolls-Royce - SMR (Small Modular Reactors) for AI energy needs
+    # 'AHT.L',  # Ashtead - Power & cooling for data center builds
+    # 'RR.L',  # Rolls-Royce - SMR (Small Modular Reactors) for AI energy needs
     'KAI.L',  # Kainos - Leading AI implementation services
-    'OXIG.L',  # Oxford Instruments - Semiconductors/Nanotech research tools
+    # 'OXIG.L',  # Oxford Instruments - Semiconductors/Nanotech research tools
     'RSW.L',  # Renishaw - High-precision engineering for AI hardware/robotics
-    'CWR.L',  # Ceres Power - Fuel cell tech for off-grid data center power
-    'SGE.L',  # Sage Group - Enterprise AI workflow infrastructure
+    # 'CWR.L',  # Ceres Power - Fuel cell tech for off-grid data center power
+    # 'SGE.L',  # Sage Group - Enterprise AI workflow infrastructure
     'FTC.L'  # Filtronic - High-frequency comms infrastructure for AI clusters
 
     # RIO.L, GLEN.L, AAL.L, ANTO.L, SHEL.L, BP.L,

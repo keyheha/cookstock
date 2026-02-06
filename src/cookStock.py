@@ -2633,6 +2633,8 @@ def setup_csv_file_if_not_exists(filepath):
                     "Ticker",
                     "Final Signal",
                     "VCP Buy",
+                    "Prev VCP Buy",
+                    "VCP Changed",
                     "Buy Signal",
                     "Buy Reasons",
                     "Sell Signal",
@@ -2671,6 +2673,8 @@ def setup_csv_file(filepath):
                 "Ticker",
                 "Final Signal",
                 "VCP Buy",
+                "Prev VCP Buy",
+                "VCP Changed",
                 "Buy Signal",
                 "Buy Reasons",
                 "Sell Signal",
@@ -3141,11 +3145,53 @@ def append_to_csv(
 ):
     """Append a row to the CSV file."""
     import csv
+    from datetime import datetime, timedelta
 
     # Calculate VCP-based buy signal (standalone - strict Minervini)
     vcp_buy_signal = (
         "YES" if (is_good_pivot and not is_deep_correction and is_demand_dry) else "NO"
     )
+    
+    # Load previous day's VCP Buy signal for this ticker
+    prev_vcp_buy = "N/A"
+    vcp_changed = "NO"
+    try:
+        # Get the directory containing the current results folder
+        current_dir = os.path.dirname(filepath)
+        results_base = os.path.dirname(current_dir)
+        
+        # Get the filename to find the same market file in previous day
+        filename = os.path.basename(filepath)
+        
+        # Try to find previous day's folder
+        # Parse current folder name as date (format: YYYY-MM-DD)
+        current_folder_name = os.path.basename(current_dir)
+        try:
+            current_date = datetime.strptime(current_folder_name, "%Y-%m-%d")
+            # Look backwards up to 7 days to find previous trading day
+            for days_back in range(1, 8):
+                previous_date = current_date - timedelta(days=days_back)
+                previous_folder = previous_date.strftime("%Y-%m-%d")
+                previous_filepath = os.path.join(results_base, previous_folder, filename)
+                
+                if os.path.exists(previous_filepath):
+                    # Read previous day's CSV and find this ticker
+                    with open(previous_filepath, 'r', newline='') as prev_f:
+                        prev_reader = csv.DictReader(prev_f)
+                        for prev_row in prev_reader:
+                            if prev_row['Ticker'] == ticker:
+                                prev_vcp_buy = prev_row.get('VCP Buy', 'N/A')
+                                # Check if VCP Buy signal changed
+                                if prev_vcp_buy in ['YES', 'NO'] and prev_vcp_buy != vcp_buy_signal:
+                                    vcp_changed = "YES"
+                                break
+                    break  # Found previous day's data, stop searching
+        except (ValueError, KeyError) as e:
+            # If date parsing fails or folder structure is unexpected, leave as N/A
+            logger.debug("Could not parse date from folder %s or read previous data: %s", current_folder_name, e)
+    except Exception as e:
+        # If any error occurs, just log and continue with N/A
+        logger.debug("Error loading previous day VCP data for %s: %s", ticker, e)
     
     # Calculate common technical analysis buy signal (NOT combined with VCP)
     common_buy_signal = "NO"
@@ -3219,6 +3265,8 @@ def append_to_csv(
                 ticker,
                 final_signal,
                 vcp_buy_signal,
+                prev_vcp_buy,
+                vcp_changed,
                 buy_signal,
                 buy_details,
                 sell_signal,
@@ -3269,19 +3317,20 @@ def sort_csv_by_buy_signal(filepath):
         if not rows:
             return
 
-        # Sort by: Final Signal (YES first), VCP Buy (YES first), Buy Signal (YES first), Price to Support % (smallest first)
-        # Column indices: Ticker=0, Final Signal=1, VCP Buy=2, Buy Signal=3, ..., Price to Support %=12
+        # Sort by: Final Signal (YES first), VCP Buy (YES first), VCP Changed (YES first), Buy Signal (YES first), Price to Support % (smallest first)
+        # Column indices: Ticker=0, Final Signal=1, VCP Buy=2, Prev VCP Buy=3, VCP Changed=4, Buy Signal=5, ..., Price to Support %=16
         def sort_key(row):
             final_signal_yes = row[1] == "YES"
             vcp_buy_yes = row[2] == "YES"
-            buy_yes = row[3] == "YES"
-            sell_yes = row[5] == "YES"
+            vcp_changed_yes = row[4] == "YES"
+            buy_yes = row[5] == "YES"
+            sell_yes = row[7] == "YES"
             try:
-                # Price to Support % is at index 12
-                price_to_support_pct = float(row[12]) if (final_signal_yes or vcp_buy_yes or buy_yes) else float("inf")
+                # Price to Support % is now at index 16 (shifted by 2 columns)
+                price_to_support_pct = float(row[16]) if (final_signal_yes or vcp_buy_yes or buy_yes) else float("inf")
             except (ValueError, IndexError):
                 price_to_support_pct = float("inf")
-            return (not final_signal_yes, not vcp_buy_yes, not buy_yes, price_to_support_pct, sell_yes)
+            return (not final_signal_yes, not vcp_buy_yes, not vcp_changed_yes, not buy_yes, price_to_support_pct, sell_yes)
 
         rows.sort(key=sort_key)
 

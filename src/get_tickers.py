@@ -110,6 +110,8 @@ CUSTOM_TICKERS_HK = [
     '9888.HK',  # Baidu
     '9988.HK',  # Alibaba Group
     '2400.HK',  # XD
+    '0288.HK',
+    '3306.HK',
 ]
 
 # headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df

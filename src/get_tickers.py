@@ -90,28 +90,102 @@ CUSTOM_TICKERS_UK = [
 ]
 
 CUSTOM_TICKERS_HK = [
-    '0005.HK',  # HSBC Holdings
-    '0008.HK',  # PCCW
-    '0285.HK',  # BYD Electronics
-    '0388.HK',  # Hong Kong Exchanges and Clearing (HKEX)
-    '0700.HK',  # Tencent Holdings
-    '0981.HK',  # SMIC (Semiconductor Manufacturing International)
-    '0992.HK',  # Lenovo Group
-    '1024.HK',  # Kuaishou Technology
-    '1398.HK',  # Industrial and Commercial Bank of China (ICBC)
-    '1810.HK',  # Xiaomi Corporation
-    '2018.HK',  # AAC Technologies
-    '2638.HK',  # HK Electric Investments
-    '3328.HK',  # Bank of Communications
-    '3690.HK',  # Meituan
-    '6823.HK',  # HKT (Hong Kong Telecommunications)
-    '9626.HK',  # Bilibili
-    '9660.HK',  # Horizon Robotics
-    '9888.HK',  # Baidu
-    '9988.HK',  # Alibaba Group
-    '2400.HK',  # XD
-    '0288.HK',
-    '3306.HK',
+    '0001.HK',  # 長江和記
+    '0002.HK',  # 中電控股
+    '0003.HK',  # 香港中華煤氣
+    '0005.HK',  # 匯豐控股
+    '0006.HK',  # 電能實業
+    '0011.HK',  # 恆生銀行
+    '0012.HK',  # 恆基地產
+    '0016.HK',  # 新鴻基地產
+    '0017.HK',  # 新世界發展
+    '0027.HK',  # 銀河娛樂
+    '0066.HK',  # 港鐵公司
+    '0101.HK',  # 恆隆地產
+    '0175.HK',  # 吉利汽車
+    '0241.HK',  # 阿里健康
+    '0267.HK',  # 中信股份
+    '0285.HK',  # 比亞迪電子
+    '0288.HK',  # 萬洲國際
+    '0291.HK',  # 華潤啤酒
+    '0316.HK',  # 東方海外國際
+    '0322.HK',  # 康師傅控股
+    '0386.HK',  # 中國石油化工
+    '0388.HK',  # 香港交易所
+    '0669.HK',  # 創科實業
+    '0688.HK',  # 中國海外發展
+    '0700.HK',  # 騰訊控股
+    '0762.HK',  # 中國聯通
+    '0823.HK',  # 領展房產基金
+    '0857.HK',  # 中國石油股份
+    '0868.HK',  # 信義玻璃
+    '0883.HK',  # 中國海洋石油
+    '0939.HK',  # 建設銀行
+    '0941.HK',  # 中國移動
+    '0960.HK',  # 龍湖集團
+    '0968.HK',  # 信義光能
+    '0981.HK',  # 中芯國際
+    '0992.HK',  # 聯想集團
+    '1024.HK',  # 快手-W
+    '1038.HK',  # 長江基建集團
+    '1044.HK',  # 恆安國際
+    '1088.HK',  # 中國神華
+    '1093.HK',  # 石藥集團
+    '1109.HK',  # 華潤置地
+    '1113.HK',  # 長江實業集團
+    '1177.HK',  # 中國生物製藥
+    '1209.HK',  # 華潤萬象生活
+    '1211.HK',  # 比亞迪股份
+    '1299.HK',  # 友邦保險
+    '1347.HK',  # 華虹半導體
+    '1378.HK',  # 中國宏橋
+    '1398.HK',  # 工商銀行
+    '1797.HK',  # 東方甄選
+    '1810.HK',  # 小米集團
+    '1876.HK',  # 百威亞太
+    '1928.HK',  # 金沙中國有限公司
+    '1929.HK',  # 周大福
+    '2013.HK',  # 微盟集團
+    '2015.HK',  # 理想汽車-W
+    '2020.HK',  # 安踏體育
+    '2269.HK',  # 藥明生物
+    '2313.HK',  # 申洲國際
+    '2318.HK',  # 中國平安
+    '2319.HK',  # 蒙牛乳業
+    '2331.HK',  # 李寧
+    '2382.HK',  # 舜宇光學科技
+    '2388.HK',  # 中銀香港
+    '2628.HK',  # 中國人壽
+    '2688.HK',  # 新奧能源
+    '3690.HK',  # 美團-W
+    '3968.HK',  # 招商銀行
+    '3988.HK',  # 中國銀行
+    '6060.HK',  # 眾安在線
+    '6098.HK',  # 碧桂園服務
+    '6618.HK',  # 京東健康
+    '6690.HK',  # 海爾智家
+    '6862.HK',  # 海底撈
+    '9618.HK',  # 京東集團-SW
+    '9626.HK',  # 嗶哩嗶哩-W
+    '9633.HK',  # 農夫山泉
+    '9866.HK',  # 蔚來-SW
+    '9868.HK',  # 小鵬汽車-W
+    '9888.HK',  # 百度集團-SW
+    '9922.HK',  # 九毛九
+    '9961.HK',  # 攜程集團-S
+    '9988.HK',  # 阿里巴巴-SW
+    '9999.HK'  # 網易-S
+]
+
+CUSTOM_TICKERS_HK_OTHERS = [
+    '0008.HK',  # 電訊盈科
+    '2018.HK',  # 瑞聲科技
+    '2400.HK',  # 心動公司
+    '2638.HK',  # 港燈電力投資
+    '3306.HK',  # 江南布衣
+    '3328.HK',  # 交通銀行
+    '6823.HK',  # 香港電訊
+    '9660.HK'  # 地平線
 ]
 
 # headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df
@@ -210,11 +284,11 @@ def get_custom_tickers(market='US'):
     elif market == 'UK':
         return CUSTOM_TICKERS_UK.copy()
     elif market == 'HK':
-        return CUSTOM_TICKERS_HK.copy()
+        return CUSTOM_TICKERS_HK.copy() + CUSTOM_TICKERS_HK_OTHERS.copy()
     elif market == 'BOTH':
         return CUSTOM_TICKERS_US.copy() + CUSTOM_TICKERS_UK.copy()
     elif market == 'ALL':
-        return CUSTOM_TICKERS_US.copy() + CUSTOM_TICKERS_UK.copy() + CUSTOM_TICKERS_HK.copy()
+        return CUSTOM_TICKERS_US.copy() + CUSTOM_TICKERS_UK.copy() + CUSTOM_TICKERS_HK.copy() + CUSTOM_TICKERS_HK_OTHERS.copy()
     else:
         raise ValueError(f"Invalid market '{market}'. Options: 'US', 'UK', 'HK', 'BOTH', 'ALL'")
 

@@ -2011,6 +2011,98 @@ class cookFinancials:
         # All criteria met, return True for a strong buy signal
         return s
 
+    @_log_step()
+    def early_vcp_entry(self):
+        """
+        Early VCP entry signal with relaxed criteria.
+        
+        This triggers before combined_best_strategy() to catch VCP patterns earlier.
+        Focuses on VCP structure and basic trend, without strict volume/price requirements.
+        
+        Required Criteria:
+        - Good pivot structure (correction ≤10%, price > support)
+        - Demand is drying (volume decreasing in consolidation)
+        - NOT in deep correction (< 50% drop)
+        - Price above 200 SMA (basic uptrend confirmation)
+        
+        Optional (improves quality but not required):
+        - Price in top 50% of 52-week range (relaxed from 25%)
+        - 150 SMA > 200 SMA (MA alignment)
+        
+        Returns:
+            bool: True if early VCP entry criteria met
+        """
+        try:
+            # 1. REQUIRED: Good pivot structure
+            isGoodPivot, currentPrice, supportPrice, resistancePrice = self.is_pivot_good()
+            if not isGoodPivot:
+                logger.info("early_vcp_entry %s: No good pivot", self.ticker)
+                return False
+            
+            # 2. REQUIRED: Demand is drying (volume decreasing)
+            isDemandDry, startDate, endDate, volume_ls, slope, intercept, _, _, _, _, _ = (
+                self.is_demand_dry()
+            )
+            if not isDemandDry:
+                logger.info("early_vcp_entry %s: Demand not dry", self.ticker)
+                return False
+            
+            # 3. REQUIRED: Not in deep correction
+            if self.is_correction_deep():
+                logger.info("early_vcp_entry %s: Deep correction", self.ticker)
+                return False
+            
+            # 4. REQUIRED: Price above 200 SMA (basic trend filter)
+            date = dt.date.today()
+            price200 = self.get_ma_200(date)
+            
+            if price200 == -1:
+                logger.info("early_vcp_entry %s: No 200 SMA data", self.ticker)
+                return False
+            
+            if not self.current_stickerPrice:
+                self.current_stickerPrice = self.get_current_price()
+            currentPrice = self.current_stickerPrice
+            
+            if currentPrice is None or currentPrice <= price200:
+                logger.info(
+                    "early_vcp_entry %s: Price %.2f not above 200 SMA %.2f",
+                    self.ticker, currentPrice if currentPrice else 0, price200
+                )
+                return False
+            
+            # OPTIONAL quality checks (log but don't fail)
+            # Check if price in top 50% of range (relaxed from top 25%)
+            if self.priceData:
+                priceDataStruct = self.priceData[self.ticker]["prices"]
+                if priceDataStruct:
+                    closePrice = [item["close"] for item in priceDataStruct if item.get("close")]
+                    if closePrice:
+                        lowestPrice = np.min(closePrice)
+                        highestPrice = np.max(closePrice)
+                        if highestPrice != lowestPrice:
+                            range_position = (currentPrice - lowestPrice) / (highestPrice - lowestPrice)
+                            if range_position >= 0.50:
+                                logger.info(
+                                    "early_vcp_entry %s: QUALITY - Price in top %.1f%% of range",
+                                    self.ticker, (1 - range_position) * 100
+                                )
+            
+            # Check if 150 SMA > 200 SMA (MA alignment)
+            price150 = self.get_ma_150(date)
+            if price150 != -1 and price150 > price200:
+                logger.info("early_vcp_entry %s: QUALITY - MA alignment good (150>200)", self.ticker)
+            
+            logger.info(
+                "early_vcp_entry %s: EARLY VCP ENTRY SIGNAL (Price: %.2f, Support: %.2f, Resistance: %.2f)",
+                self.ticker, currentPrice, supportPrice, resistancePrice
+            )
+            return True
+            
+        except Exception as e:
+            logger.exception("early_vcp_entry error for %s: %s", self.ticker, e)
+            return False
+
 
 class batch_process:
     tickers = []
@@ -2635,6 +2727,7 @@ def setup_csv_file_if_not_exists(filepath):
                     "VCP Buy",
                     "Prev VCP Buy",
                     "VCP Changed",
+                    "Early VCP",
                     "Buy Signal",
                     "Buy Reasons",
                     "Sell Signal",
@@ -2675,6 +2768,7 @@ def setup_csv_file(filepath):
                 "VCP Buy",
                 "Prev VCP Buy",
                 "VCP Changed",
+                "Early VCP",
                 "Buy Signal",
                 "Buy Reasons",
                 "Sell Signal",
@@ -3152,6 +3246,15 @@ def append_to_csv(
         "YES" if (is_good_pivot and not is_deep_correction and is_demand_dry) else "NO"
     )
     
+    # Calculate Early VCP signal (relaxed criteria for earlier entry)
+    early_vcp_signal = "NO"
+    if ticker_obj and vcp_buy_signal == "NO":  # Only check if strict VCP not yet triggered
+        try:
+            early_vcp_signal = "YES" if ticker_obj.early_vcp_entry() else "NO"
+        except Exception as e:
+            logger.debug("Error calculating early VCP for %s: %s", ticker, e)
+            early_vcp_signal = "NO"
+    
     # Load previous day's VCP Buy signal for this ticker
     prev_vcp_buy = "N/A"
     vcp_changed = "NO"
@@ -3267,6 +3370,7 @@ def append_to_csv(
                 vcp_buy_signal,
                 prev_vcp_buy,
                 vcp_changed,
+                early_vcp_signal,
                 buy_signal,
                 buy_details,
                 sell_signal,

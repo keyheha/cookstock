@@ -3247,8 +3247,9 @@ def append_to_csv(
     )
     
     # Calculate Early VCP signal (relaxed criteria for earlier entry)
+    # Should be checked independently, not conditionally based on strict VCP
     early_vcp_signal = "NO"
-    if ticker_obj and vcp_buy_signal == "NO":  # Only check if strict VCP not yet triggered
+    if ticker_obj:
         try:
             early_vcp_signal = "YES" if ticker_obj.early_vcp_entry() else "NO"
         except Exception as e:

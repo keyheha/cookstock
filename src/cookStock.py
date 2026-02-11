@@ -3039,14 +3039,15 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
     1. Deep Correction: >50% drop from peak (breakdown)
     2. Broken Support: Price below support without good pivot structure
     3. Distribution Phase: Deep correction with continued selling pressure
-    4. Death Cross: 50 MA crosses below 200 MA (bearish trend reversal)
-    5. Below Key MAs: Price below both 50 MA and 200 MA (weakness)
-    6. Volume Climax: High volume selloff (>2x average) with price drop >3%
-    7. Failed Rally: Price rejected at resistance with volume decline
-    8. ATR Trailing Stop: Price drops >3x ATR from recent high (dynamic stop)
-    9. RSI Overbought: RSI > 70 (overbought momentum indicator)
-    10. MACD Bearish Cross: MACD crosses below signal line (momentum shift)
-    11. Bearish Divergence: Price higher high but RSI lower high (reversal signal)
+    4. Volume Climax: High volume selloff (>2x average) with price drop >3%
+    5. Failed Rally: Price rejected at resistance with volume decline
+    6. ATR Trailing Stop: Price drops >3x ATR from recent high (dynamic stop)
+    7. MACD Bearish Cross: MACD crosses below signal line (strong bearish momentum shift)
+    8. Bearish Divergence: Price higher high but RSI lower high (reversal signal)
+    
+    REMOVED (incompatible with VCP):
+    - RSI Overbought: VCP breakouts naturally push RSI >70
+    - Death Cross/Below MAs: Redundant with VCP's own MA requirements
     
     Args:
         ticker_obj: cookFinancials object with price/volume data
@@ -3077,26 +3078,9 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
         if is_deep_correction and not is_demand_dry:
             sell_reasons.append("DISTRIBUTION")
         
-        # 4. Death Cross: 50 MA < 200 MA
-        try:
-            ma_50 = ticker_obj.get_ma_50(date)
-            ma_200 = ticker_obj.get_ma_200(date)
-            if ma_50 != -1 and ma_200 != -1 and ma_50 < ma_200:
-                sell_reasons.append("DEATH_CROSS")
-        except Exception:
-            pass
+        # REMOVED: Death Cross and Below Key MAs (redundant with VCP's own MA checks)
         
-        # 5. Below Key Moving Averages (both 50 and 200)
-        try:
-            ma_50 = ticker_obj.get_ma_50(date)
-            ma_200 = ticker_obj.get_ma_200(date)
-            if ma_50 != -1 and ma_200 != -1:
-                if current_price < ma_50 and current_price < ma_200:
-                    sell_reasons.append("BELOW_KEY_MAS")
-        except Exception:
-            pass
-        
-        # 6. Volume Climax: High volume (>2x avg) with price drop >3%
+        # 4. Volume Climax: High volume (>2x avg) with price drop >3%
         try:
             if ticker_obj.priceData:
                 priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]
@@ -3118,7 +3102,7 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
         except Exception:
             pass
         
-        # 7. Failed Rally at Resistance (if near resistance with declining volume)
+        # 5. Failed Rally at Resistance (if near resistance with declining volume)
         try:
             if pressure_price and current_price >= 0.95 * pressure_price:
                 # Near resistance, check if volume is declining
@@ -3133,7 +3117,7 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
         except Exception:
             pass
         
-        # 8. Trailing Stop: >8% drop from recent high (20-day high)
+        # 6. Trailing Stop: >8% drop from recent high (20-day high)
         # Replaced with ATR-based dynamic trailing stop
         try:
             if ticker_obj.priceData:
@@ -3156,15 +3140,9 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
         except Exception:
             pass
         
-        # 9. RSI Overbought: RSI > 70 indicates overbought condition (potential reversal)
-        try:
-            rsi = ticker_obj.get_rsi(date, period=14)
-            if rsi != -1 and rsi > 70:
-                sell_reasons.append("RSI_OVERBOUGHT")
-        except Exception:
-            pass
+        # REMOVED: RSI Overbought (incompatible with VCP - breakouts naturally push RSI >70)
         
-        # 10. MACD Bearish Cross: MACD line crosses below signal line
+        # 7. MACD Bearish Cross: MACD line crosses below signal line (only strong crosses)
         try:
             macd, signal, histogram = ticker_obj.get_macd(date)
             if macd is not None and signal is not None:
@@ -3173,16 +3151,13 @@ def calculate_sell_signal(ticker_obj, current_price, support_price, pressure_pri
                 macd_prev, signal_prev, _ = ticker_obj.get_macd(date_prev)
                 
                 if macd_prev is not None and signal_prev is not None:
-                    # Bearish cross: was above, now below
+                    # Only trigger on actual bearish cross (not weak signals)
                     if macd_prev >= signal_prev and macd < signal:
                         sell_reasons.append("MACD_BEARISH_CROSS")
-                    # Or already below and histogram decreasing
-                    elif macd < signal and histogram < 0:
-                        sell_reasons.append("MACD_BEARISH")
         except Exception:
             pass
         
-        # 11. Bearish RSI Divergence: Price makes higher high but RSI makes lower high
+        # 8. Bearish RSI Divergence: Price makes higher high but RSI makes lower high
         try:
             if ticker_obj.priceData:
                 priceDataStruct = ticker_obj.priceData[ticker_obj.ticker]["prices"]

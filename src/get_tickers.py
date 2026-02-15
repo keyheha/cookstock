@@ -11,34 +11,209 @@ _SECTORS_LIST = {'Consumer Non-Durables', 'Capital Goods', 'Health Care', 'Energ
 
 # Custom ticker lists
 CUSTOM_TICKERS_US = [
-    # Combined from personal watchlist, AI infrastructure, and major US companies
-    'AAOI', 'AAPL', 'ABT', 'ABBV', 'ABNB', 'ACN', 'ADBE', 'ADSK', 'AI', 'ALAB',
-    'AMAT', 'AMD', 'AMT', 'AMZN', 'ANET', 'APH', 'APLD', 'ARM', 'ASML', 'AVGO',
-    'BA', 'BAC', 'BE', 'BEP', 'BLDP',
-    'C', 'CEG', 'CIEN', 'CIFR', 'CLS', 'CMCSA', 'COHR', 'COIN', 'COST', 'CRDO', 'CSIQ',
-    'CRM', 'CRWD', 'CRWV', 'CSCO', 'CVX',
-    'DDOG', 'DELL', 'DIS', 'DOCN', 'DOCU', 'DUOL', 'DUK',
-    'EA', 'EBAY', 'EOSE', 'EQR', 'ETSY', 'EXPE', 'ENPH',
-    'FDX', 'FLEX', 'FLNC', 'FN', 'FRSH', 'FCEL',
-    'GEV', 'GILD', 'GLXY', 'GOOGL', 'GTLB', 'GWH', 'GNRC',
-    'HD', 'HON', 'HOOD', 'HUT',
-    'IBM', 'INTC', 'INTU', 'IREN',
-    'JNJ', 'JPM',
-    'KEY', 'KO',
-    'LEU', 'LITE', 'LLY', 'LMT', 'LRCX',
-    'MA', 'MCD', 'MDB', 'META', 'MNDY', 'MRK', 'MRNA', 'MS', 'MSFT', 'MU', 'MMM',
-    'NBIS', 'NEE', 'NET', 'NFLX', 'NKE', 'NOW', 'NTAP', 'NUAI', 'NVDA',
-    'O', 'OKLO', 'OKTA', 'ONDS', 'ORCL',
-    'PEP', 'PG', 'PHM', 'PINS', 'PLTR', 'PM', 'PSTG', 'PSX', 'PYPL', 'PLUG',
-    'QCOM', 'QS',
-    'RBLX', 'RKLB', 'ROKU', 'RTX', 'RKT',
-    'SANM', 'SBUX', 'SHOP', 'SMTC', 'SNAP', 'SNDK', 'SNOW', 'SPG', 'SPGI', 'SPOT', 'SEDG',
-    'SQ', 'STX', 'SMR', 'SOXX', 'STEM',
-    'TEAM', 'TEM', 'TGT', 'TLN', 'TMO', 'TSLA', 'TSM', 'TTD', 'TWLO', 'TXN', 'TE',
-    'UBER', 'UDMY', 'UNH', 'UNP', 'UPS', 'UPWK',
-    'V', 'VEEV', 'VMEO', 'VRT', 'VST', 'VZ',
-    'WDC', 'WIX', 'WMT', 'WULF',
-    'XOM'
+    # === US SECTOR ETFs ===
+    # SPDR Select Sector ETFs (11 sectors)
+    'XLB',    # Materials
+    'XLC',    # Communication Services
+    'XLE',    # Energy
+    'XLF',    # Financials
+    'XLI',    # Industrials
+    'XLK',    # Technology
+    'XLP',    # Consumer Staples
+    'XLRE',   # Real Estate
+    'XLU',    # Utilities
+    'XLV',    # Health Care
+    'XLY',    # Consumer Discretionary
+    
+    # Vanguard Sector ETFs
+    'VCR',    # Consumer Discretionary
+    'VDC',    # Consumer Staples
+    'VDE',    # Energy
+    'VFH',    # Financials
+    'VGT',    # Information Technology
+    'VHT',    # Health Care
+    'VIS',    # Industrials
+    'VOX',    # Communication Services
+    'VAW',    # Materials
+    'VNQ',    # Real Estate
+    'VPU',    # Utilities
+    
+    # === US INDUSTRY ETFs ===
+    # Technology Sub-Sectors
+    'SOXX',   # Semiconductors
+    'SMH',    # Semiconductors
+    'SOXQ',   # Semiconductors (NASDAQ-100)
+    'IGV',    # Software
+    'WCLD',   # Cloud Computing
+    'SKYY',   # Cloud Computing
+    'HACK',   # Cybersecurity
+    'CIBR',   # Cybersecurity
+    'BUG',    # Cybersecurity
+    'AIQ',    # AI & Big Data
+    'BOTZ',   # Robotics & AI
+    'ROBT',   # Robotics & Automation
+    'FINX',   # Fintech
+    'ARKF',   # Fintech Innovation
+    'CLOU',   # Cloud Computing
+    'AWAY',   # Travel Technology
+    
+    # Financial Sub-Sectors
+    'KRE',    # Regional Banks
+    'KBE',    # Banks
+    'IAT',    # Regional Banks
+    'KBWB',   # Banks
+    'KIE',    # Insurance
+    'IAK',    # Insurance
+    'FNCL',   # Financials
+    'IYF',    # Financials
+    'VFH',    # Financials
+    'IYG',    # Financial Services
+    'SPYV',   # S&P 500 Value
+    
+    # Healthcare Sub-Sectors
+    'IBB',    # Biotech
+    'XBI',    # Biotech
+    'BBH',    # Biotech
+    'IHI',    # Medical Devices
+    'IHE',    # Pharma
+    'XPH',    # Pharma
+    'GNOM',   # Genomics
+    'ARKG',   # Genomic Revolution
+    
+    # Energy Sub-Sectors
+    'XOP',    # Oil & Gas Exploration
+    'IEO',    # Oil & Gas Exploration
+    'OIH',    # Oil Services
+    'IEZ',    # Oil Equipment & Services
+    'ICLN',   # Clean Energy
+    'TAN',    # Solar Energy
+    'FAN',    # Wind Energy
+    'PBW',    # Clean Energy
+    'QCLN',   # Clean Energy
+    'ACES',   # Clean Energy
+    'LIT',    # Lithium & Battery Tech
+    'BATT',   # Battery Tech & Materials
+    
+    # Industrial Sub-Sectors
+    'ITB',    # Homebuilders
+    'XHB',    # Homebuilders
+    'IYT',    # Transportation
+    'XTN',    # Transportation
+    'JETS',   # Airlines
+    'ITA',    # Aerospace & Defense
+    'PPA',    # Aerospace & Defense
+    'ARKX',   # Space Exploration
+    'UFO',    # Space & Defense
+    
+    # Consumer Sub-Sectors
+    'XRT',    # Retail
+    'RTH',    # Retail
+    'XLY',    # Consumer Discretionary
+    'FXD',    # Consumer Discretionary
+    'ONLN',   # Online Retail
+    'IBUY',   # Online Retail
+    'AWAY',   # Travel & Leisure
+    'PEJ',    # Leisure & Entertainment
+    'GAMR',   # Video Games & Esports
+    'ESPO',   # Video Gaming & Esports
+    'BJK',    # Gaming
+    
+    # Materials & Commodities
+    'GDX',    # Gold Miners
+    'GDXJ',   # Junior Gold Miners
+    'SLV',    # Silver
+    'GLD',    # Gold
+    'SIL',    # Silver Miners
+    'COPX',   # Copper Miners
+    'PICK',   # Metals & Mining
+    'XME',    # Metals & Mining
+    'REMX',   # Rare Earth/Strategic Metals
+    
+    # Real Estate Sub-Sectors
+    'IYR',    # Real Estate
+    'XLRE',   # Real Estate
+    'VNQ',    # Real Estate
+    'MORT',   # Mortgage REITs
+    'REZ',    # Residential REITs
+    'INDS',   # Industrial REITs
+    'HOMZ',   # Residential Construction
+    
+    # Communication Services
+    'SOCL',   # Social Media
+    'FIVG',   # 5G Networks
+    'NXTG',   # 5G
+    
+    # === S&P 500 STOCKS ===
+    # Mega Cap Tech (Top 10)
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B', 'V', 'UNH',
+    
+    # Technology
+    'AVGO', 'ORCL', 'ADBE', 'CRM', 'ACN', 'CSCO', 'AMD', 'INTC', 'IBM', 'NOW',
+    'INTU', 'QCOM', 'AMAT', 'TXN', 'MU', 'ADI', 'LRCX', 'KLAC', 'SNPS', 'CDNS',
+    'PANW', 'NXPI', 'MCHP', 'FTNT', 'ADSK', 'ANSS', 'ROP', 'KEYS', 'APH', 'TEL',
+    'ANET', 'MPWR', 'TYL', 'ZBRA', 'AKAM', 'CTSH', 'DELL', 'HPQ', 'NTAP', 'STX',
+    'WDC', 'FFIV', 'JNPR', 'ENPH', 'SEDG', 'ON', 'SWKS', 'QRVO', 
+    
+    # Communication Services
+    'META', 'GOOGL', 'GOOG', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR',
+    'EA', 'TTWO', 'WBD', 'NWSA', 'NWS', 'FOXA', 'FOX', 'OMC', 'IPG', 'PARA',
+    'MTCH', 'LYV',
+    
+    # Consumer Discretionary
+    'AMZN', 'TSLA', 'HD', 'NKE', 'MCD', 'SBUX', 'LOW', 'TJX', 'BKNG', 'AZO',
+    'CMG', 'ORLY', 'MAR', 'GM', 'F', 'ABNB', 'YUM', 'DHI', 'LEN', 'HLT',
+    'ROST', 'DG', 'DLTR', 'EBAY', 'ETSY', 'BBY', 'ULTA', 'DPZ', 'GPC', 'POOL',
+    'KMX', 'CZR', 'LVS', 'WYNN', 'MGM', 'TSCO', 'PHM', 'TPR', 'RL', 'HAS',
+    'GRMN', 'WHR', 'NVR', 'EXPE', 'NCLH', 'RCL', 'CCL', 'AAL', 'DAL', 'UAL',
+    'LUV', 'ALK',
+    
+    # Consumer Staples
+    'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'MDLZ', 'CL', 'GIS',
+    'KMB', 'MNST', 'SYY', 'KHC', 'HSY', 'K', 'CAG', 'TSN', 'CHD', 'CLX',
+    'CPB', 'HRL', 'MKC', 'SJM', 'LW', 'TAP', 'EL', 'KDP', 'BG', 'ADM',
+    
+    # Energy
+    'XOM', 'CVX', 'COP', 'SLB', 'EOG', 'MPC', 'PSX', 'PXD', 'VLO', 'WMB',
+    'OKE', 'KMI', 'HAL', 'BKR', 'FANG', 'HES', 'DVN', 'MRO', 'OXY', 'APA',
+    
+    # Financials
+    'BRK.B', 'JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'C', 'SPGI',
+    'AXP', 'BLK', 'SCHW', 'CB', 'MMC', 'PGR', 'AON', 'ICE', 'CME', 'USB',
+    'PNC', 'TFC', 'COF', 'AIG', 'MET', 'PRU', 'AFL', 'ALL', 'TRV', 'AMP',
+    'FIS', 'BK', 'STT', 'TROW', 'BEN', 'IVZ', 'NTRS', 'KEY', 'RF', 'CFG',
+    'FITB', 'HBAN', 'MTB', 'SIVB', 'ZION', 'WBS', 'CMA', 'PBCT', 'DFS', 'SYF',
+    'ALLY', 'JKHY', 'AJG', 'BRO', 'WRB', 'RJF', 'CINF', 'L', 'GL', 'AIZ',
+    
+    # Healthcare
+    'UNH', 'JNJ', 'LLY', 'ABBV', 'PFE', 'TMO', 'MRK', 'ABT', 'DHR', 'AMGN',
+    'BMY', 'GILD', 'CVS', 'CI', 'ELV', 'ISRG', 'VRTX', 'ZTS', 'REGN', 'MDT',
+    'SYK', 'BSX', 'HUM', 'MRNA', 'EW', 'BDX', 'IDXX', 'ALGN', 'HCA', 'CNC',
+    'A', 'DXCM', 'IQV', 'RMD', 'ILMN', 'BIIB', 'STE', 'MTD', 'ZBH', 'BAX',
+    'HOLX', 'PODD', 'TECH', 'COO', 'INCY', 'WAT', 'VTRS', 'CRL', 'PKI', 'DGX',
+    'LH', 'MOH', 'TFX', 'WST', 'HSIC', 'RVTY', 'CAH', 'MCK', 'COR', 'UHS',
+    
+    # Industrials
+    'UNP', 'RTX', 'HON', 'UPS', 'BA', 'LMT', 'DE', 'CAT', 'GE', 'MMM',
+    'GD', 'NOC', 'ETN', 'ITW', 'EMR', 'CSX', 'NSC', 'FDX', 'CARR', 'PCAR',
+    'WM', 'TDG', 'RSG', 'URI', 'ODFL', 'JCI', 'CMI', 'PWR', 'FAST', 'PAYX',
+    'VRSK', 'ROK', 'OTIS', 'AME', 'DOV', 'FTV', 'IR', 'XYL', 'LDOS', 'SWK',
+    'CHRW', 'EXPD', 'JBHT', 'DAL', 'UAL', 'AAL', 'LUV', 'ALK', 'NLSN', 'IEX',
+    'PNR', 'TXT', 'ROL', 'ALLE', 'MAS', 'AOS', 'GNRC', 'WAB', 'NDSN', 'J',
+    
+    # Materials
+    'LIN', 'APD', 'SHW', 'ECL', 'DD', 'FCX', 'NEM', 'DOW', 'NUE', 'VMC',
+    'MLM', 'CTVA', 'PPG', 'IFF', 'ALB', 'BALL', 'AVY', 'EMN', 'CF', 'MOS',
+    'FMC', 'CE', 'IP', 'WRK', 'PKG', 'SEE', 'AMCR',
+    
+    # Real Estate
+    'AMT', 'PLD', 'CCI', 'EQIX', 'PSA', 'WELL', 'SBAC', 'DLR', 'O', 'SPG',
+    'VICI', 'EQR', 'AVB', 'WY', 'INVH', 'ARE', 'VTR', 'EXR', 'MAA', 'ESS',
+    'KIM', 'UDR', 'HST', 'REG', 'FRT', 'BXP', 'CPT', 'PEAK',
+    
+    # Utilities
+    'NEE', 'DUK', 'SO', 'D', 'AEP', 'SRE', 'EXC', 'XEL', 'ED', 'PEG',
+    'ES', 'WEC', 'DTE', 'PPL', 'AWK', 'AEE', 'FE', 'EIX', 'ETR', 'CMS',
+    'CNP', 'NI', 'LNT', 'EVRG', 'ATO', 'AES', 'PNW', 'NRG', 'CEG',
 ]
 
 CUSTOM_TICKERS_UK = [

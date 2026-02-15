@@ -214,6 +214,102 @@ CUSTOM_TICKERS_US = [
     'NEE', 'DUK', 'SO', 'D', 'AEP', 'SRE', 'EXC', 'XEL', 'ED', 'PEG',
     'ES', 'WEC', 'DTE', 'PPL', 'AWK', 'AEE', 'FE', 'EIX', 'ETR', 'CMS',
     'CNP', 'NI', 'LNT', 'EVRG', 'ATO', 'AES', 'PNW', 'NRG', 'CEG',
+    
+    # === ADDITIONAL CUSTOM STOCKS ===
+    # High-growth technology & emerging companies
+    'AAOI',   # Applied Optoelectronics
+    'AI',     # C3.ai
+    'ALAB',   # Astera Labs
+    'APLD',   # Applied Digital
+    'ARM',    # Arm Holdings
+    'ASML',   # ASML Holding
+    'CRWD',   # CrowdStrike
+    'DDOG',   # Datadog
+    'MDB',    # MongoDB
+    'NET',    # Cloudflare
+    'NUAI',   # NumInt AI (pending)
+    'OKLO',   # Oklo Inc
+    'OKTA',   # Okta
+    'PLTR',   # Palantir
+    'SNOW',   # Snowflake
+    'TEAM',   # Atlassian
+    'TWLO',   # Twilio
+    
+    # Semiconductors & Tech Hardware
+    'TSM',    # Taiwan Semiconductor
+    'TE',     # TE Connectivity
+    'LITE',   # Lumentum
+    'CIEN',   # Ciena
+    'COHR',   # Coherent
+    'ONDS',   # Ondas Holdings
+    
+    # Renewable Energy & Clean Tech
+    'BE',     # Bloom Energy
+    'BEP',    # Brookfield Renewable
+    'BLDP',   # Ballard Power
+    'CSIQ',   # Canadian Solar
+    'EOSE',   # Eos Energy
+    'FCEL',   # FuelCell Energy
+    'FLNC',   # Fluence Energy
+    'GEV',    # GE Vernova
+    'GWH',    # ESS Tech
+    'PLUG',   # Plug Power
+    'QS',     # QuantumScape
+    'SMR',    # NuScale Power
+    'STEM',   # Stem Inc
+    
+    # Fintech & Crypto
+    'COIN',   # Coinbase
+    'HOOD',   # Robinhood
+    'PYPL',   # PayPal
+    'XYZ',     # Block (Square)
+    'GLXY',   # Galaxy Digital
+    'HUT',    # Hut 8 Mining
+    'IREN',   # Iris Energy
+    'CIFR',   # Cipher Mining
+    'WULF',   # TeraWulf
+    
+    # Software & SaaS
+    'DOCN',   # DigitalOcean
+    'DOCU',   # DocuSign
+    'DUOL',   # Duolingo
+    'FRSH',   # Freshworks
+    'GTLB',   # GitLab
+    'PSTG',   # Pure Storage
+    'VEEV',   # Veeva Systems
+    'VMEO',   # Vimeo
+    'WIX',    # Wix.com
+    
+    # Consumer & E-commerce
+    'RBLX',   # Roblox
+    'ROKU',   # Roku
+    'SHOP',   # Shopify
+    'SNAP',   # Snap Inc
+    'SPOT',   # Spotify
+    'TGT',    # Target
+    'UBER',   # Uber
+    'PINS',   # Pinterest
+    
+    # Infrastructure & Industrial
+    'FLEX',   # Flex Ltd
+    'SANM',   # Sanmina
+    'SMTC',   # Semtech
+    'VRT',    # Vertiv
+    'VST',    # Vistra Energy
+    
+    # Other Growth Stocks
+    'ALAB',   # Astera Labs
+    'CLS',    # Celestica
+    'CRDO',   # Credo Technology
+    'CRWV',   # CrowdStrike (pending verification)
+    'FN',     # Fabrinet
+    'LEU',    # Centrus Energy
+    'NBIS',   # Nebius Group
+    'RKLB',   # Rocket Lab
+    'RKT',    # Rocket Companies
+    'SNDK',   # SanDisk (now part of Western Digital)
+    'TEM',    # Tempus AI
+    'TLN',    # Talen Energy
 ]
 
 CUSTOM_TICKERS_UK = [

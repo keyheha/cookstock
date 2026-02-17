@@ -340,7 +340,7 @@ CUSTOM_TICKERS_UK = [
     'OXIG.L', 'PAGE.L', 'PNN.L', 'PFD.L', 'PHP.L', 'PNL.L', 'QLT.L', 'QQ.L', 'RAT.L', 'RCP.L',
     'RDW.L', 'RRE.L', 'RCH.L', 'RNK.L', 'RWI.L', 'SAFE.L', 'SVS.L', 'SDRL.L', 'SRP.L', 'SHB.L',
     'SHI.L', 'SMWH.L', 'SOFT.L', 'SONC.L', 'SREI.L', 'SSP.L', 'STCK.L', 'SXS.L', 'TATE.L',
-    'TBCG.L', 'TPK.L', 'TIG.L', 'TRY.L', 'UKW.L', 'VCTX.L', 'VSVS.L', 'VNET.L', 'WIZZ.L', 'WOSG.L',
+    'TBCG.L', 'TPK.L', 'TIG.L', 'TRY.L', 'UKW.L', 'VSVS.L', 'VNET.L', 'WIZZ.L', 'WOSG.L',
 
     # --- UK AI & DIGITAL INFRASTRUCTURE (Specialized) ---
     # 'BYIT.L',  # Bytes Technology - Cloud & AI licensing infrastructure

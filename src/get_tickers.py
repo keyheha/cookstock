@@ -331,7 +331,7 @@ CUSTOM_TICKERS_UK = [
     'BNKR.L', 'BAG.L', 'AJB.L', 'BWY.L', 'BHMG.L', 'BYG.L', 'BPCR.L', 'BRGE.L', 'BRSC.L', 'THRG.L',
     'BRWM.L', 'BSIF.L', 'BOY.L', 'BREE.L', 'BPT.L', 'BUT.L', 'BYIT.L', 'CCR.L', 'CLDN.L', 'CGT.L',
     'CCL.L', 'CWR.L', 'CHG.L', 'CSN.L', 'CHRY.L', 'CTY.L', 'CKN.L', 'CLIG.L', 'CLI.L', 'COA.L',
-    'CCC.L', 'CURY.L', 'DARK.L', 'DNL.L', 'DPH.L', 'DLN.L', 'DIG9.L', 'DOM.L', 'DRX.L', 'DOW.L',
+    'CCC.L', 'CURY.L', 'DLN.L', 'DIG9.L', 'DOM.L', 'DRX.L', 'DOW.L',
     'DWW.L', 'ECM.L', 'EDIN.L', 'EMG.L', 'ENOG.L', 'EPIC.L', 'ESNT.L', 'EUO.L', 'EWI.L', 'FGP.L',
     'FDM.L', 'FSG.L', 'FGT.L', 'FRCL.L', 'GCP.L', 'GFT.L', 'GNS.L', 'GPEG.L', 'GRG.L', 'HBR.L',
     'HAYS.L', 'HICL.L', 'HOCM.L', 'HRI.L', 'IBST.L', 'IGG.L', 'IEM.L', 'IMCP.L', 'INCH.L', 'INVP.L',

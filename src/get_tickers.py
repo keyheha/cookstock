@@ -165,7 +165,7 @@ CUSTOM_TICKERS_US = [
     'ROST', 'DG', 'DLTR', 'EBAY', 'ETSY', 'BBY', 'ULTA', 'DPZ', 'GPC', 'POOL',
     'KMX', 'CZR', 'LVS', 'WYNN', 'MGM', 'TSCO', 'PHM', 'TPR', 'RL', 'HAS',
     'GRMN', 'WHR', 'NVR', 'EXPE', 'NCLH', 'RCL', 'CCL', 'AAL', 'DAL', 'UAL',
-    'LUV', 'ALK',
+    'LUV',
     
     # Consumer Staples
     'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'MDLZ', 'CL', 'GIS',

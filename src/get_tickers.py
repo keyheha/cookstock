@@ -131,7 +131,6 @@ CUSTOM_TICKERS_US = [
     
     # Real Estate Sub-Sectors
     'IYR',    # Real Estate
-    'XLRE',   # Real Estate
     'VNQ',    # Real Estate
     'MORT',   # Mortgage REITs
     'REZ',    # Residential REITs
@@ -165,7 +164,6 @@ CUSTOM_TICKERS_US = [
     'ROST', 'DG', 'DLTR', 'EBAY', 'ETSY', 'BBY', 'ULTA', 'DPZ', 'GPC', 'POOL',
     'KMX', 'CZR', 'LVS', 'WYNN', 'MGM', 'TSCO', 'PHM', 'TPR', 'RL', 'HAS',
     'GRMN', 'WHR', 'NVR', 'EXPE', 'NCLH', 'RCL', 'CCL', 'AAL', 'DAL', 'UAL',
-    'LUV',
     
     # Consumer Staples
     'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'MDLZ', 'CL', 'GIS',
@@ -197,7 +195,7 @@ CUSTOM_TICKERS_US = [
     'GD', 'NOC', 'ETN', 'ITW', 'EMR', 'CSX', 'NSC', 'FDX', 'CARR', 'PCAR',
     'WM', 'TDG', 'RSG', 'URI', 'ODFL', 'JCI', 'CMI', 'PWR', 'FAST', 'PAYX',
     'VRSK', 'ROK', 'OTIS', 'AME', 'DOV', 'FTV', 'IR', 'XYL', 'LDOS', 'SWK',
-    'CHRW', 'EXPD', 'JBHT', 'DAL', 'UAL', 'AAL', 'LUV', 'ALK', 'NLSN', 'IEX',
+    'CHRW', 'EXPD', 'JBHT', 'DAL', 'UAL', 'LUV', 'ALK', 'NLSN', 'IEX',
     'PNR', 'TXT', 'ROL', 'ALLE', 'MAS', 'AOS', 'GNRC', 'WAB', 'NDSN', 'J',
     
     # Materials

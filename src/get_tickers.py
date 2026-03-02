@@ -144,7 +144,7 @@ CUSTOM_TICKERS_US = [
     
     # === S&P 500 STOCKS ===
     # Mega Cap Tech (Top 10)
-    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B', 'V', 'UNH',
+    'AAPL', 'MSFT', 'GOOGL', 'NVDA',
     
     # Technology
     'AVGO', 'ORCL', 'ADBE', 'CRM', 'ACN', 'CSCO', 'AMD', 'INTC', 'IBM', 'NOW',
@@ -154,7 +154,7 @@ CUSTOM_TICKERS_US = [
     'WDC', 'FFIV', 'JNPR', 'ENPH', 'SEDG', 'ON', 'SWKS', 'QRVO', 
     
     # Communication Services
-    'META', 'GOOGL', 'GOOG', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR',
+    'META', 'GOOG', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR',
     'EA', 'TTWO', 'WBD', 'NWSA', 'NWS', 'FOXA', 'FOX', 'OMC', 'IPG', 'PARA',
     'MTCH', 'LYV',
     
@@ -195,7 +195,7 @@ CUSTOM_TICKERS_US = [
     'GD', 'NOC', 'ETN', 'ITW', 'EMR', 'CSX', 'NSC', 'FDX', 'CARR', 'PCAR',
     'WM', 'TDG', 'RSG', 'URI', 'ODFL', 'JCI', 'CMI', 'PWR', 'FAST', 'PAYX',
     'VRSK', 'ROK', 'OTIS', 'AME', 'DOV', 'FTV', 'IR', 'XYL', 'LDOS', 'SWK',
-    'CHRW', 'EXPD', 'JBHT', 'DAL', 'UAL', 'LUV', 'ALK', 'NLSN', 'IEX',
+    'CHRW', 'EXPD', 'JBHT', 'UAL', 'LUV', 'ALK', 'NLSN', 'IEX',
     'PNR', 'TXT', 'ROL', 'ALLE', 'MAS', 'AOS', 'GNRC', 'WAB', 'NDSN', 'J',
     
     # Materials
@@ -318,7 +318,7 @@ CUSTOM_TICKERS_UK = [
     'DGE.L', 'DPLM.L', 'EZJ.L', 'EDV.L', 'ENT.L', 'EXPN.L', 'FCIT.L', 'FRES.L', 'GAW.L', 'GLEN.L',
     'GSK.L', 'HLN.L', 'HLMA.L', 'HIK.L', 'HSX.L', 'HWDN.L', 'HSBA.L', 'ICG.L', 'IHG.L', 'IMB.L',
     'IMI.L', 'INF.L', 'IAG.L', 'ITRK.L', 'JD.L', 'KGF.L', 'LAND.L', 'LGEN.L', 'LLOY.L', 'LSEG.L',
-    'MKS.L', 'MRO.L', 'MNDI.L', 'NG.L', 'NWG.L', 'NXT.L', 'OCDO.L', 'PSON.L', 'PSH.L', 'PHNX.L',
+    'MKS.L', 'MRO.L', 'MNDI.L', 'NG.L', 'NWG.L', 'NXT.L', 'OCDO.L', 'PSON.L', 'PSH.L', 'SDLF.L',
     'PRU.L', 'RKT.L', 'REL.L', 'REN.L', 'RIO.L', 'RR.L', 'RS1.L', 'SBRY.L', 'SGE.L', 'SRE.L',
     'SGRO.L', 'SHEL.L', 'SMDS.L', 'SMIN.L', 'SN.L', 'SPX.L', 'SSE.L', 'STAN.L', 'STJ.L', 'SVT.L',
     'TSCO.L', 'ULVR.L', 'UU.L', 'VTYV.L', 'VOD.L', 'WEIR.L', 'WTB.L', 'WPP.L',

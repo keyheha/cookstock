@@ -66,7 +66,6 @@ CUSTOM_TICKERS_US = [
     'IAK',    # Insurance
     'FNCL',   # Financials
     'IYF',    # Financials
-    'VFH',    # Financials
     'IYG',    # Financial Services
     'SPYV',   # S&P 500 Value
     

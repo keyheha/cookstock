@@ -176,7 +176,10 @@ if not basePath:
 import yfinance as yf
 
 # Configurable defaults (can be overridden with environment variables)
-HISTORICAL_DAYS_DEFAULT = int(os.getenv("HISTORICAL_DAYS", "120"))
+# A 200-session moving average and a 52-week range both require roughly one
+# calendar year of observations.  The old 120-day default silently calculated
+# a "200 SMA" from only ~85 trading sessions.
+HISTORICAL_DAYS_DEFAULT = int(os.getenv("HISTORICAL_DAYS", "365"))
 CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "24"))
 PREFETCH_ENABLED = os.getenv("PREFETCH", "false").lower() in ("1", "true", "yes")
 PREFETCH_WORKERS = int(os.getenv("PREFETCH_WORKERS", "8"))
@@ -282,6 +285,12 @@ class cookFinancials:
     # define some parameters
 
     def __init__(self, ticker, priceData=None, fetch_days=None):
+        # These were historically class attributes.  Always shadow them on the
+        # instance so analysis from one ticker can never leak into the next.
+        self.m_recordVCP = []
+        self.m_footPrint = []
+        self.current_stickerPrice = None
+
         if isinstance(ticker, str):
             self.ticker = ticker.upper()
             self.yf_ticker = yf.Ticker(self.ticker)
@@ -799,26 +808,58 @@ class cookFinancials:
         return tmp / (i + 1)
 
     def get_ma_50(self, date):
-        date_from = date - dt.timedelta(days=50)
-        date_to = date
-        return self.get_ma(date_from, date_to)
+        return self._get_session_sma(date, 50)
 
     def get_ma_200(self, date):
-        date_from = date - dt.timedelta(days=200)
-        date_to = date
-        return self.get_ma(date_from, date_to)
+        return self._get_session_sma(date, 200)
 
     def get_ma_150(self, date):
-        date_from = date - dt.timedelta(days=150)
-        date_to = date
-        return self.get_ma(date_from, date_to)
-    
+        return self._get_session_sma(date, 150)
+
     def get_ma_100(self, date):
         """Get 100-day simple moving average."""
-        date_from = date - dt.timedelta(days=100)
-        date_to = date
-        return self.get_ma(date_from, date_to)
-    
+        return self._get_session_sma(date, 100)
+
+    def _get_session_sma(self, date, period):
+        """Return an SMA over exactly ``period`` trading sessions.
+
+        Calendar-day slices make long moving averages materially shorter than
+        their names imply.  Returning ``-1`` for insufficient history prevents
+        the screener from producing a confident signal from partial data.
+        """
+        if not isinstance(date, dt.date):
+            raise TypeError("date must be a datetime.date")
+        if period <= 0:
+            raise ValueError("period must be positive")
+
+        prices = (
+            self.priceData.get(self.ticker, {}).get("prices", [])
+            if self.priceData
+            else []
+        )
+        closes = []
+        for item in prices:
+            try:
+                item_date = dt.datetime.strptime(
+                    item["formatted_date"], "%Y-%m-%d"
+                ).date()
+                close = float(item["close"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if item_date <= date and np.isfinite(close) and close > 0:
+                closes.append((item_date, close))
+
+        closes.sort(key=lambda value: value[0])
+        if len(closes) < period:
+            logger.warning(
+                "Insufficient history for %s %d-session SMA (%d sessions)",
+                self.ticker,
+                period,
+                len(closes),
+            )
+            return -1
+        return float(np.mean([close for _, close in closes[-period:]]))
+
     def check_double_seven_entry(self, date=None, lookback_days=7):
         """Check if price is at the lowest point in the lookback period (Double 7's entry).
         
@@ -1788,17 +1829,59 @@ class cookFinancials:
         MAX_ITERATIONS = 1000
         recordVCP = []
         self.m_recordVCP = []
+        self.m_footPrint = []
         counterForVCP = 0
+        seen_contractions = set()
 
-        while counterForVCP < MAX_ITERATIONS:
+        if isinstance(startDate, dt.datetime):
+            startDate = startDate.date()
+        elif isinstance(startDate, str):
+            startDate = dt.datetime.strptime(startDate, "%Y-%m-%d").date()
+        if not isinstance(startDate, dt.date):
+            raise TypeError("startDate must be a date, datetime, or YYYY-MM-DD string")
+
+        today = dt.date.today()
+        while counterForVCP < MAX_ITERATIONS and startDate <= today:
             flagForOneContraction, hD, hP, lD, lP = self.find_one_contraction(startDate)
 
             if not flagForOneContraction:
                 break
 
+            try:
+                high_date = dt.datetime.strptime(hD, "%Y-%m-%d").date()
+                low_date = dt.datetime.strptime(lD, "%Y-%m-%d").date()
+                high_price = float(hP)
+                low_price = float(lP)
+            except (TypeError, ValueError):
+                logger.warning("Invalid contraction returned for %s", self.ticker)
+                break
+
+            contraction = (hD, high_price, lD, low_price)
+            if (
+                contraction in seen_contractions
+                or high_date > low_date
+                or low_date < startDate
+                or not np.isfinite(high_price)
+                or not np.isfinite(low_price)
+                or high_price <= 0
+                or low_price <= 0
+            ):
+                logger.warning(
+                    "Stopping non-progressing or invalid VCP search for %s at %s",
+                    self.ticker,
+                    startDate,
+                )
+                break
+
+            seen_contractions.add(contraction)
             recordVCP.append([hD, hP, lD, lP])
             counterForVCP += 1
-            startDate = dt.datetime.strptime(lD, "%Y-%m-%d").date()
+            # A new search must begin after the completed contraction. Starting
+            # on the same low allowed the detector to rediscover it repeatedly.
+            next_start = low_date + dt.timedelta(days=1)
+            if next_start <= startDate:
+                break
+            startDate = next_start
 
         self.m_recordVCP = recordVCP
         return counterForVCP, recordVCP
@@ -1962,10 +2045,16 @@ class cookFinancials:
 
     def _calculate_volume_trend(self, volume_list):
         """Performs linear regression to determine volume trend."""
+        if not volume_list:
+            return 0.0, 0.0
+        if len(volume_list) == 1:
+            return 0.0, float(volume_list[0])
         x = np.arange(len(volume_list))
-        y = np.array(volume_list)
+        y = np.asarray(volume_list, dtype=float)
+        if not np.all(np.isfinite(y)):
+            return 0.0, 0.0
         slope, intercept = np.polyfit(x, y, 1)
-        return slope, intercept
+        return float(slope), float(intercept)
 
     def _calculate_historical_average_volume(self, priceDataStruct, days):
         """Calculates the average volume over the last 'days' period."""
@@ -2710,6 +2799,32 @@ def calculate_double_seven_signals(ticker_obj, market):
         return 'NO', 'NO'
 
 
+SCREENER_CSV_HEADER = [
+    "Ticker",
+    "Final Signal",
+    "VCP Buy",
+    "Prev VCP Buy",
+    "VCP Changed",
+    "Early VCP",
+    "Buy Signal",
+    "Buy Reasons",
+    "Sell Signal",
+    "Sell Reasons",
+    "Swing Trade Entry",
+    "Swing Reasons",
+    "Double 7's Entry",
+    "Double 7's Exit",
+    "Current Price",
+    "Support Price",
+    "Pressure Price",
+    "Price to Support %",
+    "Good Pivot",
+    "Deep Correction",
+    "Demand Dry",
+    "Ex-Dividend Date",
+]
+
+
 def setup_csv_file_if_not_exists(filepath):
     """Create CSV file with headers only if it doesn't already exist."""
     import csv
@@ -2720,32 +2835,7 @@ def setup_csv_file_if_not_exists(filepath):
             os.makedirs(basedir)
         with open(filepath, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(
-                [
-                    "Ticker",
-                    "Final Signal",
-                    "VCP Buy",
-                    "Prev VCP Buy",
-                    "VCP Changed",
-                    "Early VCP",
-                    "Buy Signal",
-                    "Buy Reasons",
-                    "Sell Signal",
-                    "Sell Reasons",
-                    "Swing Trade Entry",
-                    "Swing Reasons",
-                    "Double 7's Entry",
-                    "Double 7's Exit",
-                    "Current Price",
-                    "Support Price",
-                    "Pressure Price",
-                    "Price to Support %",
-                    "Good Pivot",
-                    "Deep Correction",
-                    "Demand Dry",
-                    "Ex-Dividend Date",
-                ]
-            )
+            writer.writerow(SCREENER_CSV_HEADER)
         logger.info("Created CSV file: %s", filepath)
     else:
         logger.info("CSV file already exists, preserving: %s", filepath)
@@ -2761,32 +2851,7 @@ def setup_csv_file(filepath):
     # Always create fresh CSV file with headers (overwrite if exists)
     with open(filepath, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(
-            [
-                "Ticker",
-                "Final Signal",
-                "VCP Buy",
-                "Prev VCP Buy",
-                "VCP Changed",
-                "Early VCP",
-                "Buy Signal",
-                "Buy Reasons",
-                "Sell Signal",
-                "Sell Reasons",
-                "Swing Trade Entry",
-                "Swing Reasons",
-                "Double 7's Entry",
-                "Double 7's Exit",
-                "Current Price",
-                "Support Price",
-                "Pressure Price",
-                "Price to Support %",
-                "Good Pivot",
-                "Deep Correction",
-                "Demand Dry",
-                "Ex-Dividend Date",
-            ]
-        )
+        writer.writerow(SCREENER_CSV_HEADER)
     logger.info("Created/reset CSV file: %s", filepath)
 
 
@@ -3255,16 +3320,19 @@ def append_to_csv(
                 
                 if os.path.exists(previous_filepath):
                     # Read previous day's CSV and find this ticker
+                    ticker_found = False
                     with open(previous_filepath, 'r', newline='') as prev_f:
                         prev_reader = csv.DictReader(prev_f)
                         for prev_row in prev_reader:
-                            if prev_row['Ticker'] == ticker:
+                            if prev_row.get('Ticker') == ticker:
+                                ticker_found = True
                                 prev_vcp_buy = prev_row.get('VCP Buy', 'N/A')
                                 # Check if VCP Buy signal changed
                                 if prev_vcp_buy in ['YES', 'NO'] and prev_vcp_buy != vcp_buy_signal:
                                     vcp_changed = "YES"
                                 break
-                    break  # Found previous day's data, stop searching
+                    if ticker_found:
+                        break  # Found the previous observation for this ticker
         except (ValueError, KeyError) as e:
             # If date parsing fails or folder structure is unexpected, leave as N/A
             logger.debug("Could not parse date from folder %s or read previous data: %s", current_folder_name, e)
@@ -3383,7 +3451,7 @@ def get_ticker_market(ticker):
 
 
 def sort_csv_by_buy_signal(filepath):
-    """Sort CSV file by Final Signal (YES first), then VCP Buy, then Buy Signal, then Price to Support %."""
+    """Rank screener rows using their named signal and support-distance columns."""
     import csv
 
     try:
@@ -3397,20 +3465,54 @@ def sort_csv_by_buy_signal(filepath):
         if not rows:
             return
 
-        # Sort by: Final Signal (YES first), VCP Buy (YES first), VCP Changed (YES first), Buy Signal (YES first), Price to Support % (smallest first)
-        # Column indices: Ticker=0, Final Signal=1, VCP Buy=2, Prev VCP Buy=3, VCP Changed=4, Buy Signal=5, ..., Price to Support %=16
+        # Resolve positions from the header. New screener columns have been
+        # added over time, so hard-coded offsets silently ranked the wrong data.
+        required_columns = {
+            "Final Signal",
+            "VCP Buy",
+            "VCP Changed",
+            "Buy Signal",
+            "Sell Signal",
+            "Price to Support %",
+        }
+        missing = required_columns.difference(header)
+        if missing:
+            logger.warning(
+                "Cannot sort %s; missing columns: %s",
+                filepath,
+                ", ".join(sorted(missing)),
+            )
+            return
+        column = {name: header.index(name) for name in required_columns}
+
+        def value(row, name):
+            index = column[name]
+            return row[index].strip() if index < len(row) else ""
+
         def sort_key(row):
-            final_signal_yes = row[1] == "YES"
-            vcp_buy_yes = row[2] == "YES"
-            vcp_changed_yes = row[4] == "YES"
-            buy_yes = row[5] == "YES"
-            sell_yes = row[7] == "YES"
+            final_signal_yes = value(row, "Final Signal") == "YES"
+            vcp_buy_yes = value(row, "VCP Buy") == "YES"
+            vcp_changed_yes = value(row, "VCP Changed") == "YES"
+            buy_yes = value(row, "Buy Signal") == "YES"
+            sell_yes = value(row, "Sell Signal") == "YES"
             try:
-                # Price to Support % is now at index 16 (shifted by 2 columns)
-                price_to_support_pct = float(row[16]) if (final_signal_yes or vcp_buy_yes or buy_yes) else float("inf")
-            except (ValueError, IndexError):
+                price_to_support_pct = (
+                    float(value(row, "Price to Support %"))
+                    if (final_signal_yes or vcp_buy_yes or buy_yes)
+                    else float("inf")
+                )
+                if not np.isfinite(price_to_support_pct):
+                    price_to_support_pct = float("inf")
+            except (ValueError, TypeError):
                 price_to_support_pct = float("inf")
-            return (not final_signal_yes, not vcp_buy_yes, not vcp_changed_yes, not buy_yes, price_to_support_pct, sell_yes)
+            return (
+                not final_signal_yes,
+                not vcp_buy_yes,
+                not vcp_changed_yes,
+                not buy_yes,
+                price_to_support_pct,
+                sell_yes,
+            )
 
         rows.sort(key=sort_key)
 

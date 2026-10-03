@@ -111,7 +111,6 @@ CUSTOM_TICKERS_US = [
     'FXD',    # Consumer Discretionary
     'ONLN',   # Online Retail
     'IBUY',   # Online Retail
-    'AWAY',   # Travel & Leisure
     'PEJ',    # Leisure & Entertainment
     'GAMR',   # Video Games & Esports
     'ESPO',   # Video Gaming & Esports

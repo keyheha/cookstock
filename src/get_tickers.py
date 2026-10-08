@@ -107,7 +107,6 @@ CUSTOM_TICKERS_US = [
     # Consumer Sub-Sectors
     'XRT',    # Retail
     'RTH',    # Retail
-    'XLY',    # Consumer Discretionary
     'FXD',    # Consumer Discretionary
     'ONLN',   # Online Retail
     'IBUY',   # Online Retail
